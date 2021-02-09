@@ -1,0 +1,16 @@
+#
+# File:    ./MANIFEST.in
+# Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
+# Date:    {% raw %}{{ stamp() }}{% endraw %}
+# Project: {{ cookiecutter.project_description }}
+# Brief:   What extra should or should not be packaged
+#
+# SPDX-License-Identifier: MIT
+#
+
+include LICENSE
+include *.md
+include pyproject.toml
+exclude .*
+exclude tox.ini
+prune tests

@@ -1,0 +1,21 @@
+#                                                         -*- coding: utf-8 -*-
+# File:    ./tests/unit/test_version.py
+# Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
+# Date:    {% raw %}{{ stamp() }}{% endraw %}
+# Project: {{ cookiecutter.project_description }}
+#
+# SPDX-License-Identifier: MIT
+#
+"""Test version module."""
+
+import unittest2 as unittest
+
+from {{ cookiecutter.package_name }} import __version__
+
+
+class VersionTestCase(unittest.TestCase):
+    """Test case for version."""
+
+    def test_version(self):
+        """Test if version is defined properly."""
+        self.assertIsInstance(__version__, str)

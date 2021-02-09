@@ -1,0 +1,12 @@
+{
+    "project_name": "",
+    "package_name": "{{ cookiecutter.project_name.replace('-', '_') }}",
+    "author_full_name": "Jiří Kučera",
+    "author_email": "sanczes AT gmail.com",
+    "github_user": "i386x",
+    "github_email": "{{ cookiecutter.author_email }}",
+    "copyright_holder": "{{ cookiecutter.author_full_name }}",
+    "team_name": "{{ cookiecutter.author_full_name }}",
+    "team_email": "{{ cookiecutter.author_email }}",
+    "project_description": ""
+}

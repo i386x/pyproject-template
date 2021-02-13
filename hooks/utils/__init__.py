@@ -124,7 +124,9 @@ def write_file(path, content):
 
 def render_string(template, env):
     """Render the `template`."""
-    return jinja2.Template(template).render(**env)
+    return jinja2.Template(
+        template, trim_blocks=True, keep_trailing_newline=True
+    ).render(**env)
 
 
 def render_file(src, dest, env):

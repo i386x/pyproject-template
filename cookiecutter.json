@@ -1,7 +1,7 @@
 {
     "project_name": "",
     "package_name": "{{ cookiecutter.project_name.replace('-', '_') }}",
-    "namespace": "",
+    "namespace": ".remove.me",
     "author_full_name": "Jiří Kučera",
     "author_email": "sanczes AT gmail.com",
     "github_user": "i386x",

@@ -2,7 +2,7 @@
 # File:    ./tox.ini
 # Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
 # Date:    {% raw %}{{ stamp() }}{% endraw %}
-# Project: {{ cookiecutter.project_description }}
+# Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
 # Brief:   Configuration for tox
 #
 # SPDX-License-Identifier: MIT
@@ -34,7 +34,7 @@ deps =
 {% endraw %}
 commands =
     safety check --full-report
-    pytest --cov={{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }} --cov-report=term-missing tests
+    pytest --cov={{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }} --cov-report=term-missing tests
     {env:COVERALLS_CMD:coveralls --output={envname}-coverage.txt}
 
 [linters]
@@ -75,7 +75,7 @@ deps =
 {% endfor %}
 {% endraw %}
 commands =
-    pylint setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }} tests/unit
+    pylint setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }} tests/unit
 
 [testenv:flake8]
 envdir = {[linters]envdir}
@@ -96,7 +96,7 @@ description =
 deps =
     mypy
 commands =
-    mypy src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }}
+    mypy src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }}
 
 [testenv:bandit]
 envdir = {[linters]envdir}
@@ -106,7 +106,7 @@ description =
 deps =
     bandit
 commands =
-    bandit -vlir setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }} tests/unit
+    bandit -vlir setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }} tests/unit
 
 [testenv:pydocstyle]
 envdir = {[linters]envdir}
@@ -116,7 +116,7 @@ description =
 deps =
     pydocstyle
 commands =
-    pydocstyle setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }} tests/unit
+    pydocstyle setup.py src/{{ cookiecutter.namespace }}{{ '/' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }} tests/unit
 
 [testenv:linters]
 envdir = {[linters]envdir}

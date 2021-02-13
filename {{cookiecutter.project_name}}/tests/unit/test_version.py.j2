@@ -2,7 +2,7 @@
 # File:    ./tests/unit/test_version.py
 # Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
 # Date:    {% raw %}{{ stamp() }}{% endraw %}
-# Project: {{ cookiecutter.project_description }}
+# Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
 #
 # SPDX-License-Identifier: MIT
 #
@@ -10,7 +10,7 @@
 
 import unittest2 as unittest
 
-from {{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }} import __version__
+from {{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }} import __version__
 
 
 class VersionTestCase(unittest.TestCase):

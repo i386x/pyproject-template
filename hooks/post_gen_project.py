@@ -16,8 +16,10 @@ import sys
 
 import click
 import jinja2
+from cookiecutter.utils import rmtree
 from utils import (
     IDEN_RE,
+    REMOVE_ME,
     WORD_RE,
     ClassifierCompleter,
     Completer,
@@ -252,14 +254,13 @@ def main():
     initialize_with_git = click.prompt(
         "Initialize with git init?", default="n", type=click.BOOL
     )
-    # Render files
+
+    # Render top dir files
     project_dir = pathlib.Path(os.getcwd())
     result = render_prjfile(project_dir, "LICENSE")
     result |= render_prjfile(project_dir, "MANIFEST.in")
     result |= render_prjfile(project_dir, "pyproject.toml")
     namespace = "{{ cookiecutter.namespace }}"
-    if len(namespace) > 0:
-        namespace = f"{namespace}."
     env = {
         "classifiers": classifiers,
         "keywords": keywords,
@@ -268,7 +269,7 @@ def main():
         "least_python3": supported_pythons[0],
         "has_entry_points": project_details.has_entry_points(),
         "package_name": "{{ cookiecutter.package_name }}",
-        "namespace": namespace,
+        "namespace": f"{namespace}." if namespace != REMOVE_ME else "",
     }
     if project_details.has_entry_points():
         env.update(project_details.to_dict())
@@ -281,9 +282,14 @@ def main():
         "requirements": requirements,
     }
     result |= render_prjfile(project_dir, "tox.ini", env)
+
+    # Render src/ files
     package_dir = project_dir / "src"
-    if len(namespace) > 0:
+    if namespace != REMOVE_ME:
+        rmtree(package_dir / "{{ cookiecutter.package_name }}")
         package_dir = package_dir / namespace
+    else:
+        rmtree(package_dir / REMOVE_ME)
     package_dir = package_dir / "{{ cookiecutter.package_name }}"
     result |= render_prjfile(package_dir, "__init__.py")
     if project_details.project_type == ProjectDetails.CONSOLE_APP:
@@ -305,8 +311,12 @@ def main():
     for name in ("__main__", "main", "plugin"):
         result |= remove_file(package_dir / f"{name}.py.j2")
     result |= render_prjfile(package_dir, "version.py")
+
+    # Render tests/ files
     result |= render_prjfile(project_dir / "tests" / "unit", "__init__.py")
     result |= render_prjfile(project_dir / "tests" / "unit", "test_version.py")
+
+    # Initialize repository
     if result != SUCCESS:
         return result
     return init_repo(project_dir, initialize_with_git)

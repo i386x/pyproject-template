@@ -27,6 +27,7 @@ from .classifiers import PYPI_CLASSIFIERS
 WORD_RE = r"^[a-zA-Z][-_0-9a-zA-Z]{2,}$"
 IDEN_RE = r"^[a-zA-Z][_0-9a-zA-Z]{2,}$"
 EMAIL_RE = r"^\S+@\S+$"
+REMOVE_ME = ".remove.me"
 
 
 def identity(arg):

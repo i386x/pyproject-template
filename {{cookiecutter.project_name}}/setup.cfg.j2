@@ -2,7 +2,7 @@
 # File:    ./setup.cfg
 # Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
 # Date:    {% raw %}{{ stamp() }}{% endraw %}
-# Project: {{ cookiecutter.project_description }}
+# Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
 # Brief:   Metadata for setup.py
 #
 # SPDX-License-Identifier: MIT
@@ -10,7 +10,7 @@
 
 [metadata]
 name = {{ cookiecutter.project_name }}
-version = attr: {{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace|length > 0 }}{{ cookiecutter.package_name }}.__version__
+version = attr: {{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }}.__version__
 url = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}
 project_urls =
     Bug Reports = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}/issues

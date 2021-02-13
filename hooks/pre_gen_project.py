@@ -9,14 +9,10 @@
 #
 """Hook that runs before the project is generated."""
 
-import os
-import pathlib
-import shutil
-
 from utils import (
     IDEN_RE,
+    REMOVE_ME,
     WORD_RE,
-    error,
     verify_email,
     verify_not_empty,
     verify_value,
@@ -33,25 +29,13 @@ COPYRIGHT_HOLDER = "{{ cookiecutter.copyright_holder }}".strip()
 TEAM_NAME = "{{ cookiecutter.team_name }}".strip()
 TEAM_EMAIL = "{{ cookiecutter.team_email }}".strip().replace(" AT ", "@")
 PROJECT_DESCRIPTION = "{{ cookiecutter.project_description }}".strip()
-SRC_DIR = pathlib.Path(os.getcwd()) / "src"
-PKGV1_DIR = SRC_DIR / "{% raw %}{{cookiecutter.package_name}}{% endraw %}"
-PKGV2_DIR = SRC_DIR / "{% raw %}{{cookiecutter.namespace}}{% endraw %}"
-
-
-def onerror(func, path, exc_info):
-    """Handle error during rmtree operation."""
-    _ = func, path
-    error(str(exc_info[1]))
 
 
 if __name__ == "__main__":
     verify_value("project_name", WORD_RE, PROJECT_NAME)
     verify_value("package_name", IDEN_RE, PACKAGE_NAME)
-    if len(NAMESPACE) > 0:
+    if NAMESPACE != REMOVE_ME:
         verify_value("namespace", IDEN_RE, NAMESPACE)
-        shutil.rmtree(PKGV1_DIR, onerror=onerror)
-    else:
-        shutil.rmtree(PKGV2_DIR, onerror=onerror)
     verify_not_empty("author_full_name", AUTHOR_FULL_NAME)
     verify_email("author_email", AUTHOR_EMAIL)
     verify_value("github_user", WORD_RE, GITHUB_USER)

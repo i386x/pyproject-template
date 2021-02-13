@@ -269,7 +269,7 @@ def main():
         "least_python3": supported_pythons[0],
         "has_entry_points": project_details.has_entry_points(),
         "package_name": "{{ cookiecutter.package_name }}",
-        "namespace": f"{namespace}." if namespace != REMOVE_ME else "",
+        "namespace": namespace if namespace != REMOVE_ME else "",
     }
     if project_details.has_entry_points():
         env.update(project_details.to_dict())

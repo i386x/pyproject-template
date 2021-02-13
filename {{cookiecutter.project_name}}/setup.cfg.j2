@@ -10,7 +10,7 @@
 
 [metadata]
 name = {{ cookiecutter.project_name }}
-version = attr: {{ cookiecutter.namespace }}{{ '.' if cookiecutter.namespace != '.remove.me' }}{{ cookiecutter.package_name }}.__version__
+version = attr: {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__version__
 url = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}
 project_urls =
     Bug Reports = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}/issues
@@ -45,7 +45,7 @@ platforms =
 zip_safe = False
 setup_requires =
     setuptools >=40.9.0
-{% raw %}{{ '#' if requirements|length == 0 }}{% endraw %}install_requires =
+{% raw %}{{ '#' if requirements|length == 0 else '' }}{% endraw %}install_requires =
 {% raw -%}
 {% for item in requirements %}
     {{ item }}
@@ -67,7 +67,7 @@ test =
 
 [options.entry_points]
 {{ entry_point_kind }} =
-    {{ entry_point_name }} = {{ namespace }}{{ package_name }}.{{ entry_point_fqdn }}
+    {{ entry_point_name }} = {{ (namespace + '.') if namespace|length > 0 else '' }}{{ package_name }}.{{ entry_point_fqdn }}
 {% endif %}
 {% endraw %}
 

@@ -1,0 +1,22 @@
+#                                                         -*- coding: utf-8 -*-
+# File:    ./src/{{ cookiecutter.namespace }}/{{ cookiecutter.package_name }}/{% raw %}{{ entry_point_source }}{% endraw %}.py
+# Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
+# Date:    {% raw %}{{ stamp() }}{% endraw %}
+# Project: {{ cookiecutter.project_description }}
+#
+# SPDX-License-Identifier: MIT
+#
+"""{% raw %}{{ entry_point_source_description }}{% endraw %}"""
+
+import sys
+
+
+def {% raw %}{{ entry_point_function }}{% endraw %}(argv=None):
+    """Run {% raw %}{{ entry_point_name }}{% endraw %}."""
+    argv = argv or sys.argv
+    # Your code goes here
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit({% raw %}{{ entry_point_function }}{% endraw %}(sys.argv))

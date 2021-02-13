@@ -257,6 +257,9 @@ def main():
     result = render_prjfile(project_dir, "LICENSE")
     result |= render_prjfile(project_dir, "MANIFEST.in")
     result |= render_prjfile(project_dir, "pyproject.toml")
+    namespace = "{{ cookiecutter.namespace }}"
+    if len(namespace) > 0:
+        namespace = f"{namespace}."
     env = {
         "classifiers": classifiers,
         "keywords": keywords,
@@ -265,6 +268,7 @@ def main():
         "least_python3": supported_pythons[0],
         "has_entry_points": project_details.has_entry_points(),
         "package_name": "{{ cookiecutter.package_name }}",
+        "namespace": namespace,
     }
     if project_details.has_entry_points():
         env.update(project_details.to_dict())
@@ -277,39 +281,30 @@ def main():
         "requirements": requirements,
     }
     result |= render_prjfile(project_dir, "tox.ini", env)
-    result |= render_prjfile(
-        project_dir / "src" / "{{ cookiecutter.package_name }}", "__init__.py"
-    )
+    package_dir = project_dir / "src"
+    if len(namespace) > 0:
+        package_dir = package_dir / namespace
+    package_dir = package_dir / "{{ cookiecutter.package_name }}"
+    result |= render_prjfile(package_dir, "__init__.py")
     if project_details.project_type == ProjectDetails.CONSOLE_APP:
         env = project_details.to_dict()
+        result |= render_prjfile(package_dir, "__main__.py", env)
         result |= render_prjfile(
-            project_dir / "src" / "{{ cookiecutter.package_name }}",
-            "__main__.py",
-            env,
-        )
-        result |= render_prjfile(
-            project_dir / "src" / "{{ cookiecutter.package_name }}",
+            package_dir,
             "main.py",
             env,
             newname=f"{env['entry_point_source']}.py",
         )
     elif project_details.project_type == ProjectDetails.PLUGIN:
         result |= render_prjfile(
-            project_dir / "src" / "{{ cookiecutter.package_name }}",
+            package_dir,
             "plugin.py",
             project_details.to_dict(),
             newname=f"{env['entry_point_source']}.py",
         )
     for name in ("__main__", "main", "plugin"):
-        result |= remove_file(
-            project_dir
-            / "src"
-            / "{{ cookiecutter.package_name }}"
-            / f"{name}.py.j2"
-        )
-    result |= render_prjfile(
-        project_dir / "src" / "{{ cookiecutter.package_name }}", "version.py"
-    )
+        result |= remove_file(package_dir / f"{name}.py.j2")
+    result |= render_prjfile(package_dir, "version.py")
     result |= render_prjfile(project_dir / "tests" / "unit", "__init__.py")
     result |= render_prjfile(project_dir / "tests" / "unit", "test_version.py")
     if result != SUCCESS:

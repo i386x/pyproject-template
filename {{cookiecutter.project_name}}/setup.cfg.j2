@@ -16,7 +16,7 @@ project_urls =
     Bug Reports = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}/issues
     Source = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}
 author = {{ cookiecutter.team_name }}
-author_email = {{ cookiecutter.team_email }}
+author_email = {{ cookiecutter.team_email|replace(' AT ', '@') }}
 classifiers =
 {% raw -%}
 {% for item in classifiers %}

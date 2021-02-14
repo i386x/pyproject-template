@@ -22,7 +22,7 @@ classifiers =
 {% for item in classifiers %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 license = MIT
 license_file = LICENSE
 description = {{ cookiecutter.project_description }}
@@ -33,13 +33,13 @@ keywords =
 {% for item in keywords %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 platforms =
 {% raw -%}
 {% for item in platforms %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 
 [options]
 zip_safe = False
@@ -50,7 +50,7 @@ setup_requires =
 {% for item in requirements %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 python_requires = >={% raw %}{{ least_python3 }}{% endraw %}, <4
 include_package_data = True
 packages = find:
@@ -69,7 +69,7 @@ test =
 {{ entry_point_kind }} =
     {{ entry_point_name }} = {{ (namespace + '.') if namespace|length > 0 else '' }}{{ package_name }}.{{ entry_point_fqdn }}
 {% endif %}
-{% endraw %}
+{%- endraw %}
 
 [options.packages.find]
 where = src

@@ -31,7 +31,7 @@ deps =
 {% for item in requirements %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 commands =
     safety check --full-report
     pytest --cov={{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} --cov-report=term-missing tests
@@ -73,7 +73,7 @@ deps =
 {% for item in requirements %}
     {{ item }}
 {% endfor %}
-{% endraw %}
+{%- endraw %}
 commands =
     pylint setup.py src/{{ (cookiecutter.namespace + '/') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} tests/unit
 

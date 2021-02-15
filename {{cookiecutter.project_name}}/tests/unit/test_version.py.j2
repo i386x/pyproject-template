@@ -8,9 +8,9 @@
 #
 """Test version module."""
 
-import unittest2 as unittest
+import unittest
 
-from {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} import __version__
+from {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.version import __version__
 
 
 class VersionTestCase(unittest.TestCase):

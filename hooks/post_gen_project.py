@@ -233,6 +233,8 @@ def init_repo(prjdir, should_init):
         runcmd("git", ["init"], prjdir)
         runcmd("git", ["config", "user.name", GH_USER], prjdir)
         runcmd("git", ["config", "user.email", GH_EMAIL], prjdir)
+        runcmd("git", ["add", "."], prjdir)
+        runcmd("git", ["commit", "-m", "Initial commit"], prjdir)
     except subprocess.SubprocessError as exc:
         print(str(exc))
         return FAILURE

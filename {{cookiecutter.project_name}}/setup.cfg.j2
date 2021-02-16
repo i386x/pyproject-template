@@ -10,7 +10,7 @@
 
 [metadata]
 name = {{ cookiecutter.project_name }}
-version = attr: {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__version__
+version = attr: {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.version.__version__
 url = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}
 project_urls =
     Bug Reports = https://github.com/{{ cookiecutter.github_user }}/{{ cookiecutter.project_name }}/issues

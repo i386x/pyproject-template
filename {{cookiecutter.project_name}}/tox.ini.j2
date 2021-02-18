@@ -10,15 +10,11 @@
 
 [tox]
 envlist =
-    py{% raw %}{{ supported_pythons }}{% endraw %}, linters
+    linters, py{% raw %}{{ supported_pythons }}{% endraw %}
 skip_missing_interpreters = True
-skipsdist = True
 
 [testenv]
 passenv = *
-setenv =
-    PYTHONPATH=src
-skip_install = True
 description =
     {envname}: Run unit tests for {envname}
 deps =
@@ -40,10 +36,32 @@ commands =
 [linters]
 envdir = {toxworkdir}/env-linters
 basepython = python3
+skipsdist = True
+skip_install = True
+setenv =
+    PYTHONPATH=src
+
+[testenv:check]
+envdir = {[linters]envdir}
+basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
+description =
+    {envname}: Run general checks
+deps =
+    setuptools
+    check-manifest
+commands =
+    pyhton setup.py check
+    check-manifest .
 
 [testenv:black]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run formatting checks
 deps =
@@ -54,6 +72,9 @@ commands =
 [testenv:isort]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run import order checks
 deps =
@@ -64,6 +85,9 @@ commands =
 [testenv:pylint]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run static code checks
 deps =
@@ -80,6 +104,9 @@ commands =
 [testenv:flake8]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run style checks
 deps =
@@ -91,6 +118,9 @@ commands =
 [testenv:mypy]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run type checks
 deps =
@@ -101,6 +131,9 @@ commands =
 [testenv:bandit]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run security analyzer
 deps =
@@ -111,6 +144,9 @@ commands =
 [testenv:pydocstyle]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run doc strings checks
 deps =
@@ -121,9 +157,13 @@ commands =
 [testenv:linters]
 envdir = {[linters]envdir}
 basepython = {[linters]basepython}
+skipsdist = {[linters]skipsdist}
+skip_install = {[linters]skip_install}
+setenv = {[linters]setenv}
 description =
     {envname}: Run linters
 deps =
+    {[testenv:check]deps}
     {[testenv:black]deps}
     {[testenv:isort]deps}
     {[testenv:pylint]deps}
@@ -132,6 +172,7 @@ deps =
     {[testenv:bandit]deps}
     {[testenv:pydocstyle]deps}
 commands =
+    {[testenv:check]commands}
     {[testenv:black]commands}
     {[testenv:isort]commands}
     {[testenv:pylint]commands}

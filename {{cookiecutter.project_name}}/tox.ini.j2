@@ -10,7 +10,7 @@
 
 [tox]
 envlist =
-    linters, py{% raw %}{{ supported_pythons }}{% endraw %}
+    py{% raw %}{{ supported_pythons }}{% endraw %}, linters
 skip_missing_interpreters = True
 
 [testenv]
@@ -50,10 +50,12 @@ setenv = {[linters]setenv}
 description =
     {envname}: Run general checks
 deps =
+    virtualenv
     setuptools
+    docutils
     check-manifest
 commands =
-    pyhton setup.py check
+    python setup.py check
     check-manifest .
 
 [testenv:black]

@@ -45,6 +45,7 @@ platforms =
 zip_safe = False
 setup_requires =
     setuptools >=40.9.0
+    docutils
 {% raw %}{{ '#' if requirements|length == 0 else '' }}{% endraw %}install_requires =
 {% raw -%}
 {% for item in requirements %}

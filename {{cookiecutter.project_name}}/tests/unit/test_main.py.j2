@@ -1,0 +1,51 @@
+#                                                         -*- coding: utf-8 -*-
+# File:    ./tests/unit/test_{% raw %}{{ entry_point_source }}{% endraw %}.py
+# Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
+# Date:    {% raw %}{{ stamp() }}{% endraw %}
+# Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
+#
+# SPDX-License-Identifier: MIT
+#
+"""Test {% raw %}{{ entry_point_source }}{% endraw %} module."""
+
+import importlib
+import unittest
+import unittest.mock
+
+from {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %} import main, start
+
+
+class MainTestCase(unittest.TestCase):
+    """Test case for entry points."""
+
+    def setUp(self):
+        """Set up the test case."""
+        self.__main_args = ["--foo", "--bar", "quux"]
+        self.__main_returns = 42
+
+    def test_main_module(self):
+        """Test that __main__ can be imported."""
+        module = importlib.import_module("{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
+        self.assertIsNotNone(module)
+        self.assertTrue(hasattr(module, "__name__"))
+        self.assertEquals(module.__name__, "{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
+
+    def test_main_function(self):
+        """Test that main returns zero."""
+        self.assertEquals(main([]), 0)
+
+    def test_start_function_import_case(self):
+        """Test that start function do nothing during module import."""
+        exit_func = unittest.mock.Mock()
+        main_func = unittest.mock.Mock()
+        start("foo", exit_func, main_func, self.__args)
+        main_func.assert_not_called()
+        exit_func.assert_not_called()
+
+    def test_start_function_script_case(self):
+        """Test that start function runs main during script invocation."""
+        exit_func = unittest.mock.Mock()
+        main_func = unittest.mock.Mock(return_value=self.__main_returns)
+        start("__main__", exit_func, main_func, self.__args)
+        main_func.assert_called_once_with(self.__args)
+        exit_func.assert_called_once_with(self.__main_returns)

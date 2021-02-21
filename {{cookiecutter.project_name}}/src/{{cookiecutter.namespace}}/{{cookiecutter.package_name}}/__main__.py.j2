@@ -8,10 +8,6 @@
 #
 """Enable invoking {{ cookiecutter.project_name }} by python -m {{ cookiecutter.namespace }}.{{ cookiecutter.package_name }}."""
 
-import sys
+from {{ cookiecutter.namespace }}.{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %} import start
 
-from .{% raw %}{{ entry_point_source }}{% endraw %} import {% raw %}{{ entry_point_function }}{% endraw %}
-
-
-if __name__ == "__main__":
-    sys.exit({% raw %}{{ entry_point_function }}{% endraw %}(sys.argv))
+start(__name__)

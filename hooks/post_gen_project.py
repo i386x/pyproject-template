@@ -43,6 +43,7 @@ FAILURE = 1
 ALL_PYTHONS = ["3.6", "3.7", "3.8", "3.9"]
 GH_USER = "{{ cookiecutter.github_user }}"
 GH_EMAIL = "{{ cookiecutter.github_email|replace(' AT ', '@') }}"
+GH_REMOTE = f"https://github.com/{GH_USER}/{{ cookiecutter.project_name }}"
 
 
 def get_classifiers():
@@ -107,7 +108,7 @@ class ProjectDetails:
 
     def __init__(self):
         """Initialize the instance."""
-        self.project_type = self.PACKAGE
+        self.project_type = type(self).PACKAGE
         self.entry_point_kind = ""
         self.entry_point_name = ""
         self.entry_point_source = ""
@@ -125,7 +126,7 @@ class ProjectDetails:
 
     def has_entry_points(self):
         """Return `True` if the project has entry points."""
-        return self.project_type[0] > self.PACKAGE[0]
+        return self.project_type[0] > type(self).PACKAGE[0]
 
     @staticmethod
     def project_type_to_str(project_type):
@@ -134,19 +135,21 @@ class ProjectDetails:
 
     def ask_project_type(self):
         """Ask the user to select project type."""
+        cls = type(self)
         return choice_prompt(
             "project type",
-            [self.PACKAGE, self.PLUGIN, self.CONSOLE_APP],
+            [cls.PACKAGE, cls.PLUGIN, cls.CONSOLE_APP],
             self.project_type_to_str,
         )
 
     def ask_ep_kind(self):
         """Ask the user for the entry point kind."""
-        if self.project_type == self.PLUGIN:
+        cls = type(self)
+        if self.project_type == cls.PLUGIN:
             return simple_prompt(
                 "Please, enter the plugin name space", IDEN_RE
             )
-        if self.project_type == self.CONSOLE_APP:
+        if self.project_type == cls.CONSOLE_APP:
             return "console_scripts"
         return ""
 
@@ -193,7 +196,7 @@ class ProjectDetails:
             self.entry_point_source = self.ask_ep_source()
             self.entry_point_fqdn = self.entry_point_source
             self.entry_point_source_description = self.ask_ep_src_desc()
-        if self.project_type == self.CONSOLE_APP:
+        if self.project_type == type(self).CONSOLE_APP:
             self.entry_point_function = self.ask_ep_function()
             self.entry_point_fqdn += f":{self.entry_point_function}"
         return self
@@ -233,96 +236,130 @@ def init_repo(prjdir, should_init):
         runcmd("git", ["init"], prjdir)
         runcmd("git", ["config", "user.name", GH_USER], prjdir)
         runcmd("git", ["config", "user.email", GH_EMAIL], prjdir)
+        runcmd("git", ["remote", "add", "origin", GH_REMOTE], prjdir)
         runcmd("git", ["add", "."], prjdir)
         runcmd("git", ["commit", "-m", "Initial commit"], prjdir)
+        runcmd("git", ["branch", "-M", "main"], prjdir)
     except subprocess.SubprocessError as exc:
         print(str(exc))
         return FAILURE
     return SUCCESS
 
 
-def main():
-    """Run the script."""
-    # Ask user for additional input
-    classifiers = get_classifiers()
-    keywords = get_keywords()
-    platforms = get_platforms()
-    requirements = get_requirements()
-    project_details = ProjectDetails().ask()
-    supported_pythons = get_interpreters(ALL_PYTHONS)
-    if len(supported_pythons) == 0:
-        supported_pythons = ALL_PYTHONS
-    print(f"Supported pythons: {', '.join(supported_pythons)}")
-    initialize_with_git = click.prompt(
-        "Initialize with git init?", default="n", type=click.BOOL
+class Project:
+    """Implements project creation logic."""
+
+    NAMESPACE = "{{ cookiecutter.namespace }}"
+    PACKAGE_NAME = "{{ cookiecutter.package_name }}"
+    METADATA = ("classifiers", "keywords", "platforms", "requirements")
+    __slots__ = (
+        "metadata",
+        "project_details",
+        "supported_pythons",
+        "initialize_with_git",
+        "project_dir",
     )
 
-    # Render top dir files
-    project_dir = pathlib.Path(os.getcwd())
-    result = render_prjfile(project_dir, "LICENSE")
-    result |= render_prjfile(project_dir, "MANIFEST.in")
-    result |= render_prjfile(project_dir, "pyproject.toml")
-    namespace = "{{ cookiecutter.namespace }}"
-    env = {
-        "classifiers": classifiers,
-        "keywords": keywords,
-        "platforms": platforms,
-        "requirements": requirements,
-        "least_python3": supported_pythons[0],
-        "has_entry_points": project_details.has_entry_points(),
-        "package_name": "{{ cookiecutter.package_name }}",
-        "namespace": namespace if namespace != REMOVE_ME else "",
-    }
-    if project_details.has_entry_points():
-        env.update(project_details.to_dict())
-    result |= render_prjfile(project_dir, "setup.cfg", env)
-    result |= render_prjfile(project_dir, "setup.py", chmod_x=True)
-    tox_supported_pythons = [x.replace(".", "") for x in supported_pythons]
-    tox_supported_pythons = "{" f"{','.join(tox_supported_pythons)}" "}"
-    env = {
-        "supported_pythons": tox_supported_pythons,
-        "requirements": requirements,
-    }
-    result |= render_prjfile(project_dir, "tox.ini", env)
+    def __init__(self):
+        """Set project defaults."""
+        self.metadata = {}
+        self.project_details = ProjectDetails()
+        self.supported_pythons = []
+        self.initialize_with_git = False
+        self.project_dir = pathlib.Path(os.getcwd())
 
-    # Render src/ files
-    package_dir = project_dir / "src"
-    if namespace != REMOVE_ME:
-        rmtree(package_dir / "{{ cookiecutter.package_name }}")
-        package_dir = package_dir / namespace
-    else:
-        rmtree(package_dir / REMOVE_ME)
-    package_dir = package_dir / "{{ cookiecutter.package_name }}"
-    result |= render_prjfile(package_dir, "__init__.py")
-    if project_details.project_type == ProjectDetails.CONSOLE_APP:
-        env = project_details.to_dict()
-        result |= render_prjfile(package_dir, "__main__.py", env)
-        result |= render_prjfile(
-            package_dir,
-            "main.py",
-            env,
-            newname=f"{env['entry_point_source']}.py",
+    def ask(self):
+        """Ask for user input."""
+        for name in type(self).METADATA:
+            self.metadata[name] = globals()[f"get_{name}"]()
+        self.project_details = ProjectDetails().ask()
+        supported_pythons = get_interpreters(ALL_PYTHONS)
+        if len(supported_pythons) == 0:
+            supported_pythons = ALL_PYTHONS
+        print(f"Supported pythons: {', '.join(supported_pythons)}")
+        self.supported_pythons = supported_pythons
+        self.initialize_with_git = click.prompt(
+            "Initialize with git init?", default="n", type=click.BOOL
         )
-    elif project_details.project_type == ProjectDetails.PLUGIN:
-        result |= render_prjfile(
-            package_dir,
-            "plugin.py",
-            project_details.to_dict(),
-            newname=f"{env['entry_point_source']}.py",
-        )
-    for name in ("__main__", "main", "plugin"):
-        result |= remove_file(package_dir / f"{name}.py.j2")
-    result |= render_prjfile(package_dir, "version.py")
 
-    # Render tests/ files
-    result |= render_prjfile(project_dir / "tests" / "unit", "__init__.py")
-    result |= render_prjfile(project_dir / "tests" / "unit", "test_version.py")
+    def render_topdir_files(self):
+        """Render files under top level directory."""
+        cls = type(self)
+        env = {
+            "least_python3": self.supported_pythons[0],
+            "has_entry_points": self.project_details.has_entry_points(),
+            "package_name": cls.PACKAGE_NAME,
+            "namespace": cls.NAMESPACE if cls.NAMESPACE != REMOVE_ME else "",
+        }
+        env.update(self.metadata)
+        if self.project_details.has_entry_points():
+            env.update(self.project_details.to_dict())
+        tox_supported_pythons = [
+            x.replace(".", "") for x in self.supported_pythons
+        ]
+        tox_supported_pythons = "{" f"{','.join(tox_supported_pythons)}" "}"
+        env.update({"supported_pythons": tox_supported_pythons})
 
-    # Initialize repository
-    if result != SUCCESS:
-        return result
-    return init_repo(project_dir, initialize_with_git)
+        result = render_prjfile(self.project_dir, "LICENSE")
+        result |= render_prjfile(self.project_dir, "MANIFEST.in")
+        result |= render_prjfile(self.project_dir, "pyproject.toml")
+        result |= render_prjfile(self.project_dir, "setup.cfg", env)
+        result |= render_prjfile(self.project_dir, "setup.py", chmod_x=True)
+        return result | render_prjfile(self.project_dir, "tox.ini", env)
+
+    def render_sources(self):
+        """Render files under src directory."""
+        cls = type(self)
+        package_dir = self.project_dir / "src"
+        if cls.NAMESPACE != REMOVE_ME:
+            rmtree(package_dir / cls.PACKAGE_NAME)
+            package_dir = package_dir / cls.NAMESPACE
+        else:
+            rmtree(package_dir / REMOVE_ME)
+        package_dir = package_dir / cls.PACKAGE_NAME
+        env = self.project_details.to_dict()
+        epsrc = f"{env['entry_point_source']}.py"
+
+        result = render_prjfile(package_dir, "__init__.py")
+        if self.project_details.project_type == ProjectDetails.CONSOLE_APP:
+            result |= render_prjfile(package_dir, "__main__.py", env)
+            result |= render_prjfile(
+                package_dir, "main.py", env, newname=epsrc
+            )
+        elif self.project_details.project_type == ProjectDetails.PLUGIN:
+            result |= render_prjfile(
+                package_dir, "plugin.py", env, newname=epsrc
+            )
+        for name in ("__main__", "main", "plugin"):
+            result |= remove_file(package_dir / f"{name}.py.j2")
+        return result | render_prjfile(package_dir, "version.py")
+
+    def render_tests(self):
+        """Render files under tests directory."""
+        utests_dir = self.project_dir / "tests" / "unit"
+        env = self.project_details.to_dict()
+
+        result = render_prjfile(utests_dir, "__init__.py")
+        if self.project_details.project_type == ProjectDetails.CONSOLE_APP:
+            result |= render_prjfile(
+                utests_dir,
+                "test_main.py",
+                env,
+                newname=f"test_{env['entry_point_source']}.py",
+            )
+        result |= remove_file(utests_dir / "test_main.py.j2")
+        return result | render_prjfile(utests_dir, "test_version.py")
+
+    def create(self):
+        """Create a project."""
+        self.ask()
+        result = self.render_topdir_files()
+        result |= self.render_sources()
+        result |= self.render_tests()
+        if result != SUCCESS:
+            return result
+        return init_repo(self.project_dir, self.initialize_with_git)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(Project().create())

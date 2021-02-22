@@ -9,12 +9,12 @@
 """{% raw %}{{ entry_point_source_description }}{% endraw %}"""
 
 import sys
-from typing import List, Callable
+from typing import Callable, List, Optional
 
 
-def {% raw %}{{ entry_point_function }}{% endraw %}(argv: List[str] = sys.argv) -> int:
+def {% raw %}{{ entry_point_function }}{% endraw %}(argv: Optional[List[str]] = None) -> int:
     """Run {% raw %}{{ entry_point_name }}{% endraw %}."""
-    _ = argv
+    argv = argv or sys.argv
     # Your code goes here
     return 0
 
@@ -22,8 +22,8 @@ def {% raw %}{{ entry_point_function }}{% endraw %}(argv: List[str] = sys.argv) 
 def start(
     name: str,
     exit_func: Callable[[int], None] = sys.exit,
-    main_func: Callable[[List[str]], int] = {% raw %}{{ entry_point_function }}{% endraw %},
-    args: List[str] = sys.argv,
+    main_func: Callable[[Optional[List[str]]], int] = {% raw %}{{ entry_point_function }}{% endraw %},
+    args: Optional[List[str]] = None,
 ) -> None:
     """Start the application."""
     if name == "__main__":

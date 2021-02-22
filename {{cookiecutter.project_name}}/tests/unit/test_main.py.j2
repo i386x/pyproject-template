@@ -28,17 +28,17 @@ class MainTestCase(unittest.TestCase):
         module = importlib.import_module("{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
         self.assertIsNotNone(module)
         self.assertTrue(hasattr(module, "__name__"))
-        self.assertEquals(module.__name__, "{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
+        self.assertEqual(module.__name__, "{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
 
     def test_main_function(self):
         """Test that main returns zero."""
-        self.assertEquals(main([]), 0)
+        self.assertEqual(main([]), 0)
 
     def test_start_function_import_case(self):
         """Test that start function do nothing during module import."""
         exit_func = unittest.mock.Mock()
         main_func = unittest.mock.Mock()
-        start("foo", exit_func, main_func, self.__args)
+        start("foo", exit_func, main_func, self.__main_args)
         main_func.assert_not_called()
         exit_func.assert_not_called()
 
@@ -46,6 +46,6 @@ class MainTestCase(unittest.TestCase):
         """Test that start function runs main during script invocation."""
         exit_func = unittest.mock.Mock()
         main_func = unittest.mock.Mock(return_value=self.__main_returns)
-        start("__main__", exit_func, main_func, self.__args)
-        main_func.assert_called_once_with(self.__args)
+        start("__main__", exit_func, main_func, self.__main_args)
+        main_func.assert_called_once_with(self.__main_args)
         exit_func.assert_called_once_with(self.__main_returns)

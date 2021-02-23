@@ -11,6 +11,10 @@
 include LICENSE
 include *.md
 include pyproject.toml
-exclude .*
-exclude tox.ini
-prune tests
+include setup.cfg
+include tox.ini
+graft tests
+
+global-exclude .*
+global-exclude *-coverage.txt
+global-exclude __pycache__

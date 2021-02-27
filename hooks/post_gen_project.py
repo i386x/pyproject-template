@@ -338,16 +338,19 @@ class Project:
         """Render files under tests directory."""
         utests_dir = self.project_dir / "tests" / "unit"
         env = self.project_details.to_dict()
+        epsrctest = f"test_{env['entry_point_source']}.py"
 
         result = render_prjfile(utests_dir, "__init__.py")
         if self.project_details.project_type == ProjectDetails.CONSOLE_APP:
             result |= render_prjfile(
-                utests_dir,
-                "test_main.py",
-                env,
-                newname=f"test_{env['entry_point_source']}.py",
+                utests_dir, "test_main.py", env, newname=epsrctest
             )
-        result |= remove_file(utests_dir / "test_main.py.j2")
+        elif self.project_details.project_type == ProjectDetails.PLUGIN:
+            result |= render_prjfile(
+                utests_dir, "test_plugin.py", env, newname=epsrctest
+            )
+        for name in ("main", "plugin"):
+            result |= remove_file(utests_dir / f"test_{name}.py.j2")
         return result | render_prjfile(utests_dir, "test_version.py")
 
     def create(self):

@@ -1,0 +1,26 @@
+#                                                         -*- coding: utf-8 -*-
+# File:    ./tests/unit/test_{% raw %}{{ entry_point_source }}{% endraw %}.py
+# Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
+# Date:    {% raw %}{{ stamp() }}{% endraw %}
+# Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
+#
+# SPDX-License-Identifier: MIT
+#
+"""Test {% raw %}{{ entry_point_source }}{% endraw %} module."""
+
+import importlib
+import unittest
+
+
+class PluginTestCase(unittest.TestCase):
+    """Test case for plugin entry points."""
+
+    def test_plugin_module(self):
+        """
+        Test that plugin module can be imported.
+
+        This is a dummy test to satisfy 100% test coverage.
+        """
+        module = importlib.import_module("{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}")
+        self.assertIsNotNone(module)
+        self.assertTrue(hasattr(module, "__doc__"))

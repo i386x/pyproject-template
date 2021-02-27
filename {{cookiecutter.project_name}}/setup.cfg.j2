@@ -54,7 +54,7 @@ setup_requires =
 {%- endraw %}
 python_requires = >={% raw %}{{ least_python3 }}{% endraw %}, <4
 include_package_data = True
-packages = find:
+packages = find{{ '_namespace' if cookiecutter.namespace != '.remove.me' else '' }}:
 package_dir =
     = src
 

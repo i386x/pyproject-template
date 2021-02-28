@@ -127,7 +127,7 @@ description =
 deps =
     mypy
 commands =
-    mypy src/{{ (cookiecutter.namespace + '/') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}
+    mypy {{ '--namespace-packages ' if cookiecutter.namespace != '.remove.me' else '' }}-p {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}
 
 [testenv:bandit]
 envdir = {[linters]envdir}

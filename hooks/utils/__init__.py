@@ -298,8 +298,10 @@ def wrap_yaml_ctor(loader, name):
         yield data
         method = getattr(yaml.constructor.SafeConstructor, name)
         generator = method(loader, node, *args, **kwargs)
-        for gdata in generator:
-            copy_data(data, gdata)
+        gdata = {}
+        for item in generator:
+            gdata = item
+        copy_data(data, gdata)
 
     wrapper = gwrapper if name in GENCTORS else cwrapper
 
@@ -494,15 +496,16 @@ class YamlConfigItem(ConfigItem):
         """Render the item."""
         lines = []
         for item in self.description:
-            lines.append(f"# {item}")
+            lines.append(f"# {item.strip()}")
         value = self.value
         if isinstance(value, (list, tuple)) and self.hint:
             value = []
-        lines.append(f"{self.key}: {self.val2yml(value)}".strip())
+        lines.append(f"{self.key}: {self.val2yml(value).strip()}")
         if isinstance(self.value, (list, tuple)):
             comment = "#" if self.hint else ""
             for item in self.value:
-                lines.append(f"  {comment}- {self.val2yml(item)}".strip())
+                lines.append(f"  {comment}- {self.val2yml(item).strip()}")
+        lines.append("")
         return lines
 
 
@@ -545,7 +548,7 @@ class Config:
         if not self.__name2item:
             error("Configuration items are not set.")
         lines = []
-        for _, item in self.__name2item:
+        for _, item in self.__name2item.items():
             lines.extend(item.render())
         return lines
 
@@ -560,7 +563,7 @@ class Config:
         cls = type(self)
         sline, sname = cls.LINE_ARG, cls.NAME_ARG
         args = [
-            x.replace(sline, at_line).replace(sname, fpath)
+            x.replace(sline, f"{at_line}").replace(sname, f"{fpath}")
             for x in self.__editor_args
             if not (at_line < 0 and sline in x)
         ]
@@ -580,7 +583,7 @@ class Config:
         try:
             config = load_yaml(read_file(fpath))
             self.verify_keys(config)
-            for _, item in self.__name2item:
+            for _, item in self.__name2item.items():
                 item.verify(config)
         except yaml.YAMLError as exc:
             line = -1

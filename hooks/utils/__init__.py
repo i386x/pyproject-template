@@ -11,37 +11,40 @@
 import collections
 import importlib
 import os
+import pathlib
 import re
-import readline
 import stat
 import subprocess  # nosec
 import sys
+import tempfile
 import time
 
 import click
 import jinja2
 import requests
+import yaml
 
 from .classifiers import PYPI_CLASSIFIERS
 
 WORD_RE = r"^[a-zA-Z][-_0-9a-zA-Z]{2,}$"
+KWORD_RE = r"^[a-zA-Z][-_0-9a-zA-Z]{2,}([ ][a-zA-Z][-_0-9a-zA-Z]{2,})*$"
 IDEN_RE = r"^[a-zA-Z][_0-9a-zA-Z]{2,}$"
 EMAIL_RE = r"^\S+@\S+$"
 REMOVE_ME = ".remove.me"
+GENCTORS = (
+    "construct_yaml_omap",
+    "construct_yaml_pairs",
+    "construct_yaml_set",
+    "construct_yaml_seq",
+    "construct_yaml_map",
+    "construct_yaml_object",
+)
+TYPEMAP = {}
 
 
-def identity(arg):
-    """Return its argument."""
-    return arg
-
-
-def to_int(number):
-    """Convert `number` as string to integer."""
-    try:
-        return int(number)
-    except ValueError:
-        pass
-    return None
+def sanitize(sinput):
+    """Sanitize `sinput`."""
+    return " ".join(sinput.split())
 
 
 def pinfo(msg, verbose=False, label="INFO"):
@@ -201,277 +204,423 @@ def find_license(classifiers, license_name):
     return None
 
 
-class Catalog(collections.OrderedDict):
-    """Implements a classifier catalog."""
+class NullType:
+    """Auxiliary class to represent yaml null."""
+
+    def __str__(self):
+        """Implement `str(obj)`."""
+        return "null"
+
+    def __repr__(self):
+        """Implement `repr(obj)`."""
+        return str(self)
+
+
+class Result:
+    """Holds result."""
+
+    __slots__ = ("value", "line", "detail")
+
+    def __init__(self, value=None, line=-1, detail=""):
+        """Initialize result."""
+        self.value = value
+        self.line = line
+        self.detail = detail
+
+    @staticmethod
+    def is_valid():
+        """Return `True` if the result is valid."""
+        return True
+
+
+class Error(Result):
+    """Holds error."""
+
+    __slots__ = ()
+
+    def __init__(self, line, detail):
+        """Initialize error."""
+        Result.__init__(self, None, line, detail)
+
+    @staticmethod
+    def is_valid():
+        """Return `True` if the result is valid."""
+        return False
+
+
+def gctor2newc(name, args):
+    """Create a new container object based on generator-constructor name."""
+    if name == "construct_yaml_set":
+        return set()
+    if name == "construct_yaml_map":
+        return {}
+    if name == "construct_yaml_object":
+        return args[0].__new__(args[0])
+    return []
+
+
+def copy_data(dest, src):
+    """Copy the `src` data to `dest`."""
+    if isinstance(src, list):
+        dest.extend(src)
+    elif isinstance(src, (set, dict)):
+        dest.update(src)
+    else:
+        dest.__dict__.update(src.__dict__)
+
+
+def wrap_yaml_obj(obj):
+    """Wrap yaml `obj` to be extensible."""
+    if obj is None:
+        return NullType()
+    cls = type(obj)
+    if cls not in TYPEMAP:
+        TYPEMAP[cls] = type(cls.__name__.capitalize(), (cls,), {})
+    return TYPEMAP[cls](obj)
+
+
+def wrap_yaml_ctor(loader, name):
+    """Wrap the `construct_*` method."""
+    if name == "construct_undefined" or not name.startswith("construct_"):
+        return
+
+    def cwrapper(node, *args, **kwargs):
+        method = getattr(yaml.constructor.SafeConstructor, name)
+        data = method(loader, node, *args, **kwargs)
+        if not hasattr(data, "line"):
+            data = wrap_yaml_obj(data)
+        setattr(data, "line", node.start_mark.line + 1)
+        return data
+
+    def gwrapper(node, *args, **kwargs):
+        data = wrap_yaml_obj(gctor2newc(name, args))
+        setattr(data, "line", node.start_mark.line + 1)
+        yield data
+        method = getattr(yaml.constructor.SafeConstructor, name)
+        generator = method(loader, node, *args, **kwargs)
+        for gdata in generator:
+            copy_data(data, gdata)
+
+    wrapper = gwrapper if name in GENCTORS else cwrapper
+
+    def ywrapper(_, node, *args, **kwargs):
+        return wrapper(node, *args, **kwargs)
+
+    setattr(loader, name, wrapper)
+    if name.startswith("construct_yaml_"):
+        tag = name.replace("construct_yaml_", "tag:yaml.org,2002:")
+        loader.yaml_constructors[tag] = ywrapper
+
+
+def load_yaml(stream):
+    """Load yaml from `stream`."""
+    loader = yaml.SafeLoader(stream)
+    for member in dir(loader):
+        wrap_yaml_ctor(loader, member)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()
+
+
+class VerificationError(Exception):
+    """Raised when config verification fails."""
+
+    __slots__ = ("line", "detail")
+
+    def __init__(self, detail, line=-1):
+        """Initialize exception object."""
+        Exception.__init__(self, detail, line)
+        self.line = line
+        self.detail = detail if line < 0 else f"at line {line}: {detail}"
+
+    def __str__(self):
+        """Return the error description."""
+        return self.detail
+
+
+def assert_type(value, vtype):
+    """Assert `value` is of the type `vtype`."""
+    if not isinstance(value, vtype):
+        raise VerificationError(
+            f"expected {vtype.__name__}", getattr(value, "line", -1)
+        )
+
+
+def key_line(cfgmap, key):
+    """Get the line number of `key` in `cfgmap`."""
+    if not hasattr(cfgmap, "key2line"):
+        key2line = {}
+        for cfgkey in cfgmap:
+            key2line[cfgkey] = getattr(cfgkey, "line", -1)
+        cfgmap.key2line = key2line
+    return cfgmap.key2line.get(key, -1)
+
+
+def assert_item_type(config, key, itype):
+    """Assert `config[key]` is of the type `itype`."""
+    if not isinstance(config[key], itype):
+        raise VerificationError(
+            f"{key}: expected {itype.__name__}", key_line(config, key)
+        )
+
+
+def assert_item_nonempty(config, key):
+    """Assert `config[key]` is not empty."""
+    if len(config[key]) == 0:
+        raise VerificationError(f"{key} is empty", key_line(config, key))
+
+
+class ConfigItem:
+    """Base class for the project config item."""
+
+    __slots__ = ("description", "key", "value", "hint")
+
+    def __init__(self):
+        """Initialize the config item."""
+        self.description = ()
+        self.key = ""
+        self.value = None
+        self.hint = False
+
+    def set_description(self, *lines):
+        """Set description."""
+        self.description = lines
+
+    def set_key(self, name):
+        """Set the key name."""
+        self.key = name
+
+    def set_value(self, value, hint=False):
+        """Attach the value to the key."""
+        self.value = value
+        self.hint = hint
+
+    def render(self):
+        """Render the item."""
+        raise NotImplementedError
+
+    @staticmethod
+    def sorter(key):
+        """Specify how to sort `key`."""
+        return key
+
+    def verify_bool(self, config):
+        """Verify bool."""
+        value = config[self.key]
+        if isinstance(value, bool):
+            return
+        if isinstance(value, int):
+            if value not in (0, 1):
+                raise VerificationError(f"Invalid value ({value})", value.line)
+            config[self.key] = value == 1
+            return
+        assert_item_type(config, self.key, str)
+        svalue = value.strip().lower()
+        if svalue in ("yes", "y", "true", "t", "1"):
+            config[self.key] = True
+        elif svalue in ("no", "n", "false", "f", "0"):
+            config[self.key] = False
+        else:
+            raise VerificationError(f"Invalid value ({value})", value.line)
+
+    def verify_int(self, config, vmin=None, vmax=None):
+        """Verify integer."""
+        assert_item_type(config, self.key, int)
+        value = config[self.key]
+        if (vmin is not None and value < vmin) or (
+            vmax is not None and value > vmax
+        ):
+            raise VerificationError(f"Invalid value ({value})", value.line)
+
+    def verify_str(self, config, regexp=None):
+        """Verify string."""
+        assert_item_type(config, self.key, str)
+        assert_item_nonempty(config, self.key)
+        value = config[self.key]
+        svalue = value.strip()
+        if regexp and not re.match(regexp, svalue):
+            raise VerificationError(
+                f"Invalid value format ({value})", value.line
+            )
+        config[self.key] = svalue
+
+    def verify_list(self, config, regexp, item_name="item", **kwargs):
+        """Verify list."""
+        assert_item_type(config, self.key, list)
+        if not kwargs.get("empty", False):
+            assert_item_nonempty(config, self.key)
+        items = config[self.key]
+        for i, item in enumerate(items):
+            assert_type(item, str)
+            sitem = sanitize(item)
+            if not re.match(regexp, sitem):
+                raise VerificationError(
+                    f"Invalid {item_name} ({item})", item.line
+                )
+            items[i] = sitem
+        if kwargs.get("sort", False):
+            config[self.key] = sorted(items, self.sorter)
+
+    def verify(self, config):
+        """Verify `config`."""
+
+
+class YamlConfigItem(ConfigItem):
+    """Implements configuration item rendering to yaml."""
 
     __slots__ = ()
 
     def __init__(self):
-        """Initialize catalog."""
-        collections.OrderedDict.__init__(self)
-
-    def insert(self, item):
-        """Insert `item` into the catalog."""
-        if len(item) == 0:
-            return
-
-        head, tail = item[0], item[1:]
-        if head not in self:
-            self[head] = Catalog()
-        self[head].insert(tail)
-
-    def find_catalog(self, path):
-        """Return a sub-catalog at `path`."""
-        catalog = self
-        for part in path:
-            if part not in catalog:
-                return None
-            catalog = catalog[part]
-        return catalog
-
-    def select(self, query):
-        """Return a list of classifier parts matching `query`."""
-        if len(query) == 0:
-            return []
-        catalog = self.find_catalog(query[:-1])
-        if catalog is None:
-            return []
-        return [k for k in catalog.keys() if k.startswith(query[-1])]
-
-
-class Completer:
-    """Completion helper."""
-
-    __slots__ = ("root", "catalog", "candidates")
-
-    def __init__(self, words):
-        """Create a catalog for `words`."""
-        self.root = self.catalog = Catalog()
-        for word in sorted(words):
-            word = word.strip()
-            if len(word) == 0:
-                continue
-            self.insert(word)
-        self.candidates = []
-
-    def insert(self, word):
-        """Insert `word` into the catalog."""
-        self.root.insert([word])
-
-    def use_catalog(self, path):
-        """For completion, use catalog at `path`."""
-        self.catalog = self.root.find_catalog(path)
-        return self.catalog
-
-    def complete(self, text, state):
-        """Return a candidate for auto-completion."""
-        if state == 0:
-            # First call, build a list of candidates
-            self.candidates = self.catalog.select([text])
-        if state >= len(self.candidates):
-            return None
-        return self.candidates[state]
-
-
-class ClassifierCompleter(Completer):
-    """Helps with PyPI classifiers completion."""
-
-    def __init__(self, classifiers):
-        """Create a catalog of `classifiers`."""
-        Completer.__init__(self, classifiers)
-
-    def insert(self, word):
-        """Insert `word` into the catalog."""
-        self.root.insert([x.strip() for x in word.split("::")])
-
-
-class ReadlineContextManager:
-    """Context manager for ``readline``."""
-
-    __slots__ = ("__old_completer", "__old_delims", "__completer")
-
-    def __init__(self, completer):
-        """Initialize context manager."""
-        self.__old_completer = readline.get_completer()
-        self.__old_delims = readline.get_completer_delims()
-        self.__completer = completer
-
-    def __enter__(self):
-        """Set the completer."""
-        readline.set_completer(self.__completer)
-        readline.set_completer_delims("")
-        readline.parse_and_bind("tab: complete")
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Restore the original completer."""
-        readline.set_completer(self.__old_completer)
-        readline.set_completer_delims(self.__old_delims)
-        readline.parse_and_bind("set editing-mode vi")
-
-
-class ReadEditLoop:
-    """Read-edit loop."""
-
-    __slots__ = ("__hint", "__label", "__command_map")
-
-    def __init__(self, hint, label=""):
-        """Initialize instance."""
-        self.__hint = hint
-        self.__label = label
-        self.__command_map = {
-            "h": ReadEditLoop.show_help,
-            "l": ReadEditLoop.list_items,
-            "d": ReadEditLoop.delete_item,
-            "r": ReadEditLoop.replace_item,
-            "q": ReadEditLoop.pass_command,
-        }
+        """Initialize the config item."""
+        ConfigItem.__init__(self)
 
     @staticmethod
-    def show_help(command, _):
-        """Print help to the terminal."""
-        print(":h     - print this help")
-        print(":l     - list items")
-        print(":d n   - delete nth item")
-        print(":r n t - replace nth item with text t")
-        print(":q     - quit read-edit loop")
-        return command[0]
-
-    @staticmethod
-    def list_items(command, items):
-        """Enumerate `items`."""
-        for i, item in enumerate(items):
-            print(f"{i} - {item}")
-        return command[0]
-
-    @staticmethod
-    def getargs(args, nargs, items):
-        """Extract and verify `command` arguments."""
-        if len(args) < nargs:
-            print("Insufficient number of arguments.")
-            return None
-        i = to_int(args[0])
-        if i is None:
-            print(f"{args[0]} must be an integer.")
-            return None
-        if i < 0 or i >= len(items):
-            print(f"{i} is out of range.")
-            return None
-        args[0] = i
-        return args
-
-    @staticmethod
-    def delete_item(command, items):
-        """Delete item."""
-        args = ReadEditLoop.getargs(command[1:], 1, items)
-        if args:
-            del items[args[0]]
-        return command[0]
-
-    @staticmethod
-    def replace_item(command, items):
-        """Replace item."""
-        args = ReadEditLoop.getargs(command[1:], 2, items)
-        if args:
-            items[args[0]] = args[1]
-        return command[0]
-
-    @staticmethod
-    def pass_command(command, _):
-        """Only pass `command` name."""
-        return command[0]
-
-    @staticmethod
-    def unknown_command(command, _):
-        """Complain about unknown `command`."""
-        print(f"Unknown command: {command[0]}")
-        return command[0]
-
-    def process_line(self, line, items):
-        """Process `line`."""
-        if line[0] != ":":
-            items.append(line)
+    def val2yml(value):
+        """Convert value to its yaml representation."""
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, str):
+            value = value.replace('"', '\\"')
+            return f'"{value}"'
+        if isinstance(value, list) and len(value) > 0:
+            # Nonempty lists are expanded across multiple lines
             return ""
-        command = line[1:].split(maxsplit=2)
-        if len(command) == 0:
-            return ""
-        return self.__command_map.get(
-            command[0], ReadEditLoop.unknown_command
-        )(command, items)
+        return repr(value)
 
-    def run(self, min_items=0):
-        """Run the read-edit loop."""
-        items = []
-        print(f"Please, {self.__hint} (:h - show help).")
+    def render(self):
+        """Render the item."""
+        lines = []
+        for item in self.description:
+            lines.append(f"# {item}")
+        value = self.value
+        if isinstance(value, (list, tuple)) and self.hint:
+            value = []
+        lines.append(f"{self.key}: {self.val2yml(value)}".strip())
+        if isinstance(self.value, (list, tuple)):
+            comment = "#" if self.hint else ""
+            for item in self.value:
+                lines.append(f"  {comment}- {self.val2yml(item)}".strip())
+        return lines
+
+
+class Config:
+    """Configuration container."""
+
+    NAME_ARG = "@NAME@"
+    LINE_ARG = "@LINE@"
+    __slots__ = ("__name2item", "__editor", "__editor_args", "__data")
+
+    def __init__(self):
+        """Initialize the container."""
+        self.__name2item = None
+        self.__editor = None
+        self.__editor_args = []
+        self.__data = None
+
+    def set_items(self, *items):
+        """Set configuration items."""
+        name2item = collections.OrderedDict()
+        for item in items:
+            obj = item()
+            name2item[obj.key] = obj
+        self.__name2item = name2item
+
+    def set_editor(self, editor):
+        """Set editor for configuration editing."""
+        editor = editor.split()
+        if not editor:
+            error("Missing editor.")
+        self.__editor = editor[0]
+        args = editor[1:]
+        cls = type(self)
+        if cls.NAME_ARG not in args:
+            args.append(cls.NAME_ARG)
+        self.__editor_args = args
+
+    def render(self):
+        """Render configuration lines."""
+        if not self.__name2item:
+            error("Configuration items are not set.")
+        lines = []
+        for _, item in self.__name2item:
+            lines.extend(item.render())
+        return lines
+
+    def write_config(self, fpath):
+        """Write config to `fpath`."""
+        write_file(fpath, "\n".join(self.render()))
+
+    def edit(self, fpath, at_line=-1):
+        """Launch editor for `fpath` at line `at_line`."""
+        if not self.__editor:
+            error("Editor is not set.")
+        cls = type(self)
+        sline, sname = cls.LINE_ARG, cls.NAME_ARG
+        args = [
+            x.replace(sline, at_line).replace(sname, fpath)
+            for x in self.__editor_args
+            if not (at_line < 0 and sline in x)
+        ]
+        runcmd(self.__editor, args)
+
+    def verify_keys(self, config):
+        """Verify that `config` has valid keys."""
+        if not self.__name2item:
+            error("Configuration items are not set.")
+        assert_type(config, dict)
+        for key in config:
+            if key not in self.__name2item:
+                raise VerificationError(f"Invalid key ({key})", key.line)
+
+    def verify(self, fpath):
+        """Load and verify the config at `fpath`."""
+        try:
+            config = load_yaml(read_file(fpath))
+            self.verify_keys(config)
+            for _, item in self.__name2item:
+                item.verify(config)
+        except yaml.YAMLError as exc:
+            line = -1
+            if hasattr(exc, "problem_mark"):
+                # Make pylint happy
+                line = getattr(exc, "problem_mark").line + 1
+            return Error(line, str(exc))
+        except VerificationError as exc:
+            return Error(exc.line, exc.detail)
+        return Result(config)
+
+    def edit_verify_loop(self, fpath):
+        """Run edit-verify loop."""
+        at_line = -1
         while True:
-            line = input(f"{self.__label}> ").strip()
-            if len(line) == 0:
-                continue
-            if self.process_line(line, items) == "q":
-                if len(items) < min_items:
-                    print(f"Please, enter at least {min_items} items.")
-                    continue
+            self.edit(fpath, at_line)
+            result = self.verify(fpath)
+            if result.is_valid():
+                return result.value
+            print(result.detail)
+            if not click.prompt(
+                "Continue in editing?", default="y", type=click.BOOL
+            ):
                 break
-        return items
+            at_line = result.line
+        return None
 
+    def read_config(self, tempdir=None):
+        """Request project config from the user."""
+        with tempfile.TemporaryDirectory(prefix=tempdir) as tmpdir:
+            fpath = pathlib.Path(tmpdir) / "config.yaml"
+            self.write_config(fpath)
+            self.__data = self.edit_verify_loop(fpath)
 
-def simple_prompt(prompt, validation_re=None, default=None):
-    """Perform a simple prompt with validation."""
-    while True:
-        answer = click.prompt(prompt, default=default).strip()
-        if validation_re is None or re.match(validation_re, answer):
-            return answer
-        print(f"'{answer}' does not match '{validation_re}'.")
+    def __len__(self):
+        """Return the config size."""
+        return len(self.__data) if self.__data else 0
 
-
-def choice_prompt(hint, choices, choice2str=identity):
-    """Ask the user to choose from `choices`."""
-    print(f"Please, select {hint}.")
-    print(
-        "  "
-        + ", ".join(
-            [f"{i} - {choice2str(c)}" for i, c in enumerate(choices, 1)]
-        )
-    )
-    while True:
-        answer = int(simple_prompt(hint, r"^[0-9]+$", "1").strip())
-        if 1 <= answer <= len(choices):
-            return choices[answer - 1]
-        print("Incorrect choice!")
-
-
-def selection_prompt(hint, choices, completer_class):
-    """Ask the user to select multiple values from `choices`."""
-    selections = []
-    completer = completer_class(choices)
-    catalog_path = []
-    with ReadlineContextManager(completer.complete):
-        while True:
-            choice = " :: ".join(catalog_path)
-            catalog = completer.use_catalog(catalog_path)
-            if catalog is None:
-                error(f"Invalid catalog path: {choice}")
-            print(
-                f"Please, select {hint} "
-                "(<Enter>: confirm; <dot (.)>: abort; <two dots (..)>: undo; "
-                "<:l>: list choices)."
-            )
-            answer = input(f"{choice}> ").strip()
-            if answer == ".":
-                break
-            if answer == "..":
-                catalog_path = catalog_path[:-1]
-                continue
-            if answer == ":l":
-                for item in choices:
-                    if item.startswith(choice):
-                        print(item)
-                continue
-            if answer == "" and choice in choices:
-                if choice not in selections:
-                    selections.append(choice)
-                    print(f"'{choice}' has been selected.")
-                catalog_path = []
-                continue
-            if answer in catalog:
-                catalog_path.append(answer)
-    return selections
+    def __getitem__(self, key):
+        """Get the config item."""
+        if not self.__data:
+            raise KeyError(key)
+        return self.__data[key]

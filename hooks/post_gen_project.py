@@ -14,18 +14,19 @@ import pathlib
 import subprocess  # nosec
 import sys
 
-import click
 import jinja2
 from cookiecutter.utils import rmtree
 from utils import (
     IDEN_RE,
+    KWORD_RE,
     REMOVE_ME,
     WORD_RE,
-    ClassifierCompleter,
-    Completer,
-    ReadEditLoop,
+    Config,
+    VerificationError,
+    YamlConfigItem,
+    assert_item_type,
+    assert_type,
     chmodx,
-    choice_prompt,
     error,
     find_license,
     last_mtime,
@@ -34,216 +35,379 @@ from utils import (
     remove,
     render_file,
     runcmd,
-    selection_prompt,
-    simple_prompt,
+    sanitize,
 )
 
+PACKAGE_NAME_KEY = "package_name"
+NAMESPACE_KEY = "namespace"
+CLASSIFIERS_KEY = "classifiers"
+INTERPRETERS_KEY = "interpreters"
+KEYWORDS_KEY = "keywords"
+PLATFORMS_KEY = "platforms"
+REQUIREMENTS_KEY = "requirements"
+PROJECT_TYPE_KEY = "project_type"
+PLUGIN_NAME_SPACE_KEY = "plugin_name_space"
+ENTRY_POINT_NAME_KEY = "entry_point_name"
+ENTRY_POINT_SOURCE_KEY = "entry_point_source"
+ENTRY_POINT_SOURCE_DESCRIPTION_KEY = "entry_point_source_description"
+ENTRY_POINT_FUNCTION_KEY = "entry_point_function"
+INITIALIZE_WITH_GIT_KEY = "initialize_with_git"
+LEAST_PYTHON3_KEY = "least_python3"
+SUPPORTED_PYTHONS_KEY = "supported_pythons"
+HAS_ENTRY_POINTS_KEY = "has_entry_points"
+ENTRY_POINT_KIND_KEY = "entry_point_kind"
+ENTRY_POINT_FQDN_KEY = "entry_point_fqdn"
+PACKAGE = 0
+PLUGIN = 1
+CONSOLE_APP = 2
 SUCCESS = 0
 FAILURE = 1
-ALL_PYTHONS = ["3.6", "3.7", "3.8", "3.9"]
+PYVERS = ["3.6", "3.7", "3.8", "3.9"]
+PYVER_RE = r"^[3]\.[0-9]+$"
 GH_USER = "{{ cookiecutter.github_user }}"
 GH_EMAIL = "{{ cookiecutter.github_email|replace(' AT ', '@') }}"
-GH_REMOTE = f"https://github.com/{GH_USER}/{{ cookiecutter.project_name }}"
+GH_REMOTE = f"git@github.com:{GH_USER}/{{ cookiecutter.project_name }}.git"
 
 
-def get_classifiers():
-    """Get a list of PyPI classifiers from the user."""
-    choices = load_classifiers(verbose=True)
-    # Keep MIT license classifier
-    mit_license = find_license(choices, "MIT")
-    if mit_license is None:
-        error("MIT license not in PyPI classifiers?")
-    # As generated project is MIT licensed, remove all License classifiers
-    choices = [c for c in choices if not c.startswith("License ::")]
-    # Ask for classifiers
-    choices = selection_prompt("PyPI classifier", choices, ClassifierCompleter)
-    choices.append(mit_license)
-    return sorted(choices)
+class Classifiers(YamlConfigItem):
+    """PyPI classifiers config item."""
 
-
-def get_interpreters(choices):
-    """Get a list of supported Python interpreters."""
-    selected = selection_prompt("Python interpreter", choices, Completer)
-    selected = sorted([tuple(x.split(".")) for x in selected])
-    return [".".join(x) for x in selected]
-
-
-def get_keywords():
-    """Get a list of keywords from the user."""
-    reloop = ReadEditLoop(hint="enter project keywords", label="keyword")
-    return sorted(reloop.run(min_items=1))
-
-
-def get_platforms():
-    """Get a list of platforms from the user."""
-    hints = "[any, linux, macos, nt, os2, posix, unix, win32, windows, ...]"
-    reloop = ReadEditLoop(
-        hint=f"enter supported platforms {hints}", label="platform"
-    )
-    return sorted(reloop.run(min_items=1))
-
-
-def get_requirements():
-    """Get a list of install requirements from the user."""
-    return ReadEditLoop(
-        hint="enter install requirements", label="requirement"
-    ).run()
-
-
-class ProjectDetails:
-    """Keeps additional details about project."""
-
-    PACKAGE = (0, "package", "package")
-    PLUGIN = (1, "plugin", "plugin")
-    CONSOLE_APP = (2, "console application", "script")
-    __slots__ = (
-        "project_type",
-        "entry_point_kind",
-        "entry_point_name",
-        "entry_point_source",
-        "entry_point_source_description",
-        "entry_point_function",
-        "entry_point_fqdn",
-    )
+    __slots__ = ("__classifiers", "__mit_license")
 
     def __init__(self):
-        """Initialize the instance."""
-        self.project_type = type(self).PACKAGE
-        self.entry_point_kind = ""
-        self.entry_point_name = ""
-        self.entry_point_source = ""
-        self.entry_point_source_description = ""
-        self.entry_point_function = "main"
-        self.entry_point_fqdn = ""
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.load_classifiers()
+        self.set_description("Specify PyPI classifiers [mandatory]")
+        self.set_key(CLASSIFIERS_KEY)
+        self.set_value(self.__classifiers, hint=True)
 
-    def to_dict(self):
-        """Return a dictionary with project details."""
-        details = {}
-        for attr in self.__slots__:
-            if attr.startswith("entry_point_"):
-                details[attr] = getattr(self, attr)
-        return details
+    def load_classifiers(self):
+        """Load PyPI classifiers."""
+        classifiers = load_classifiers(verbose=True)
+        mit_license = find_license(classifiers, "MIT")
+        if mit_license is None:
+            error("MIT license not in PyPI classifiers?")
+        self.__classifiers = [
+            c for c in classifiers if not c.startswith("License ::")
+        ]
+        self.__mit_license = mit_license
 
-    def has_entry_points(self):
-        """Return `True` if the project has entry points."""
-        return self.project_type[0] > type(self).PACKAGE[0]
+    def verify(self, config):
+        """Verify `config`."""
+        assert_item_type(config, self.key, list)
+        items = config[self.key]
+        for i, item in enumerate(items):
+            assert_type(item, str)
+            sitem = sanitize(item)
+            if sitem not in self.__classifiers:
+                raise VerificationError(
+                    f"Invalid classifier ({item})", item.line
+                )
+            items[i] = sitem
+        items.append(self.__mit_license)
+        config[self.key] = sorted(items)
+
+
+class Interpreters(YamlConfigItem):
+    """Supported Python interpreters config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "Specify supported Python interpreters [mandatory]"
+        )
+        self.set_key(INTERPRETERS_KEY)
+        self.set_value(PYVERS)
 
     @staticmethod
-    def project_type_to_str(project_type):
-        """Convert `project_type` to string."""
-        return project_type[1]
+    def sorter(key):
+        """Specify how to sort `key`."""
+        return tuple(int(x) for x in key.split("."))
 
-    def ask_project_type(self):
-        """Ask the user to select project type."""
-        cls = type(self)
-        return choice_prompt(
-            "project type",
-            [cls.PACKAGE, cls.PLUGIN, cls.CONSOLE_APP],
-            self.project_type_to_str,
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_list(config, PYVER_RE, "Python version")
+
+
+class Keywords(YamlConfigItem):
+    """Keywords list config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description("Specify project keywords [mandatory]")
+        self.set_key(KEYWORDS_KEY)
+        self.set_value([])
+
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_list(config, KWORD_RE, "keyword format")
+
+
+class Platforms(YamlConfigItem):
+    """Platforms list config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "Specify supported platforms (any, linux, macos, nt, os2, posix,",
+            "unix, win32, windows, ...) [mandatory]",
+        )
+        self.set_key(PLATFORMS_KEY)
+        self.set_value([])
+
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_list(config, WORD_RE, "platform name")
+
+
+class Requirements(YamlConfigItem):
+    """Requirements list config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "Specify the list of project requirements (in pip format)"
+        )
+        self.set_key(REQUIREMENTS_KEY)
+        self.set_value([])
+
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_list(
+            config, WORD_RE, "requirement name", empty=True, sort=False
         )
 
-    def ask_ep_kind(self):
-        """Ask the user for the entry point kind."""
-        cls = type(self)
-        if self.project_type == cls.PLUGIN:
-            return simple_prompt(
-                "Please, enter the plugin name space", IDEN_RE
-            )
-        if self.project_type == cls.CONSOLE_APP:
-            return "console_scripts"
-        return ""
 
-    def ask_ep_name(self):
-        """Ask the user for the entry point name."""
-        return simple_prompt(
-            f"Please, enter the {self.project_type[2]} name", WORD_RE
+class ProjectType(YamlConfigItem):
+    """Project type config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "Specify the project type. Choices are:",
+            "  0 - package",
+            "  1 - plugin",
+            "  2 - console application",
         )
+        self.set_key(PROJECT_TYPE_KEY)
+        self.set_value(PACKAGE)
 
-    @staticmethod
-    def ask_ep_source():
-        """Ask the user for the source file with entry point."""
-        lines = [
-            "Please, enter the name of module with entry point definition.",
-            "Module name",
-        ]
-        return simple_prompt("\n".join(lines), IDEN_RE)
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_int(config, PACKAGE, CONSOLE_APP)
 
-    def ask_ep_src_desc(self):
-        """Ask the user for the description of entry point source file."""
-        lines = [
-            f"Please, enter the {self.entry_point_source}'s description.",
-            "Description",
-        ]
-        text = simple_prompt("\n".join(lines))
-        if len(text) > 0 and text[-1] != ".":
-            text += "."
-        return text
 
-    def ask_ep_function(self):
-        """Ask the user for the entry point function name."""
-        return simple_prompt(
-            "Please, enter the entry point function name",
-            IDEN_RE,
-            self.entry_point_function,
+class PluginNameSpace(YamlConfigItem):
+    """Plugin name space config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "If you selected as a project_type plugin (1), please provide the",
+            "plugin name space (i.e. if you are developing a tox plugin, the",
+            'plugin name space is conventionally "tox")',
         )
+        self.set_key(PLUGIN_NAME_SPACE_KEY)
+        self.set_value(None)
 
-    def ask(self):
-        """Ask the user about additional project information."""
-        self.project_type = self.ask_project_type()
-        self.entry_point_kind = self.ask_ep_kind()
-        if self.has_entry_points():
-            self.entry_point_name = self.ask_ep_name()
-            self.entry_point_source = self.ask_ep_source()
-            self.entry_point_fqdn = self.entry_point_source
-            self.entry_point_source_description = self.ask_ep_src_desc()
-        if self.project_type == type(self).CONSOLE_APP:
-            self.entry_point_function = self.ask_ep_function()
-            self.entry_point_fqdn += f":{self.entry_point_function}"
-        return self
+    def verify(self, config):
+        """Verify `config`."""
+        project_type = config[PROJECT_TYPE_KEY]
+        if project_type != PLUGIN:
+            return
+        self.verify_str(config, IDEN_RE)
 
 
-def remove_file(path):
-    """Remove the file at `path`."""
-    try:
-        remove(path)
-    except OSError as exc:
-        print(str(exc))
-        return FAILURE
-    return SUCCESS
+class EntryPointName(YamlConfigItem):
+    """Entry point name config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "If your project has entry points (project_type > 0), please",
+            "provide the entry point name (this should be plugin or script",
+            "name)",
+        )
+        self.set_key(ENTRY_POINT_NAME_KEY)
+        self.set_value(None)
+
+    def verify(self, config):
+        """Verify `config`."""
+        project_type = config[PROJECT_TYPE_KEY]
+        if project_type == PACKAGE:
+            return
+        self.verify_str(config, WORD_RE)
+
+
+class EntryPointSource(YamlConfigItem):
+    """Entry point source config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "If your project has entry points (project_type > 0), please",
+            "provide the name of the source file (without extension) that",
+            "contains the entry point's code",
+        )
+        self.set_key(ENTRY_POINT_SOURCE_KEY)
+        self.set_value(None)
+
+    def verify(self, config):
+        """Verify `config`."""
+        project_type = config[PROJECT_TYPE_KEY]
+        if project_type == PACKAGE:
+            return
+        self.verify_str(config, IDEN_RE)
+
+
+class EntryPointSourceDescription(YamlConfigItem):
+    """Entry point source file description config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "If your project has entry points (project_type > 0), please",
+            "provide the description of the entry point source file (what",
+            "should go inside doc string)",
+        )
+        self.set_key(ENTRY_POINT_SOURCE_DESCRIPTION_KEY)
+        self.set_value(None)
+
+    def verify(self, config):
+        """Verify `config`."""
+        project_type = config[PROJECT_TYPE_KEY]
+        if project_type == PACKAGE:
+            return
+        self.verify_str(config)
+        if config[self.key][-1] != ".":
+            config[self.key] += "."
+
+
+class EntryPointFunction(YamlConfigItem):
+    """Entry point function config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "If you selected as a project_type console application (2),",
+            "please provide the name of function that should be an",
+            "application entry point",
+        )
+        self.set_key(ENTRY_POINT_FUNCTION_KEY)
+        self.set_value("main")
+
+    def verify(self, config):
+        """Verify `config`."""
+        project_type = config[PROJECT_TYPE_KEY]
+        if project_type != CONSOLE_APP:
+            return
+        self.verify_str(config, IDEN_RE)
+
+
+class InitializeWithGit(YamlConfigItem):
+    """Initialize with git config item."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the item."""
+        YamlConfigItem.__init__(self)
+        self.set_description(
+            "Initialize the project with git? (choose yes, no, y, n, true,",
+            "false, t, f, 1, 0)",
+        )
+        self.set_key(INITIALIZE_WITH_GIT_KEY)
+        self.set_value("yes")
+
+    def verify(self, config):
+        """Verify `config`."""
+        self.verify_bool(config)
+
+
+class ProjectConfig(Config):
+    """Holds project configuration."""
+
+    __slots__ = ()
+
+    def __init__(self):
+        """Initialize the config."""
+        Config.__init__(self)
+        self.set_items(
+            Classifiers,
+            Interpreters,
+            Keywords,
+            Platforms,
+            Requirements,
+            ProjectType,
+            PluginNameSpace,
+            EntryPointName,
+            EntryPointSource,
+            EntryPointSourceDescription,
+            EntryPointFunction,
+            InitializeWithGit,
+        )
+        self.set_editor(f"vim +{Config.LINE_ARG} {Config.NAME_ARG}")
+
+    def render(self):
+        """Render project configuration."""
+        lines = ["---", ""]
+        lines.extend(Config.render(self))
+        return lines
 
 
 def render_prjfile(prjdir, prjfile, env=None, newname=None, chmod_x=False):
     """Render project file."""
     env = env or {}
     src, dest = prjdir / f"{prjfile}.j2", prjdir / (newname or prjfile)
-    try:
-        env["stamp"] = mkstamp(last_mtime(src))
-        render_file(src, dest, env)
-        if chmod_x:
-            chmodx(dest)
-        remove(src)
-    except (OSError, jinja2.TemplateError) as exc:
-        print(str(exc))
-        return FAILURE
-    return SUCCESS
+    env["stamp"] = mkstamp(last_mtime(src))
+    render_file(src, dest, env)
+    if chmod_x:
+        chmodx(dest)
+    remove(src)
 
 
 def init_repo(prjdir, should_init):
     """Initialize repository with git init."""
     if not should_init:
-        return SUCCESS
-    try:
-        runcmd("git", ["init"], prjdir)
-        runcmd("git", ["config", "user.name", GH_USER], prjdir)
-        runcmd("git", ["config", "user.email", GH_EMAIL], prjdir)
-        runcmd("git", ["remote", "add", "origin", GH_REMOTE], prjdir)
-        runcmd("git", ["add", "."], prjdir)
-        runcmd("git", ["commit", "-m", "Initial commit"], prjdir)
-        runcmd("git", ["branch", "-M", "main"], prjdir)
-    except subprocess.SubprocessError as exc:
-        print(str(exc))
-        return FAILURE
-    return SUCCESS
+        return
+    runcmd("git", ["init"], prjdir)
+    runcmd("git", ["config", "user.name", GH_USER], prjdir)
+    runcmd("git", ["config", "user.email", GH_EMAIL], prjdir)
+    runcmd("git", ["remote", "add", "origin", GH_REMOTE], prjdir)
+    runcmd("git", ["add", "."], prjdir)
+    runcmd("git", ["commit", "-m", "Initial commit"], prjdir)
+    runcmd("git", ["branch", "-M", "main"], prjdir)
 
 
 class Project:
@@ -251,65 +415,76 @@ class Project:
 
     NAMESPACE = "{{ cookiecutter.namespace }}"
     PACKAGE_NAME = "{{ cookiecutter.package_name }}"
-    METADATA = ("classifiers", "keywords", "platforms", "requirements")
-    __slots__ = (
-        "metadata",
-        "project_details",
-        "supported_pythons",
-        "initialize_with_git",
-        "project_dir",
-    )
+    __slots__ = ("config", "j2env", "project_dir")
 
     def __init__(self):
         """Set project defaults."""
-        self.metadata = {}
-        self.project_details = ProjectDetails()
-        self.supported_pythons = []
-        self.initialize_with_git = False
+        config = ProjectConfig()
+        config.set_editor(
+            os.getenv("EDITOR", f"vim +{Config.LINE_ARG} {Config.NAME_ARG}")
+        )
+        self.config = config
+        self.j2env = {}
         self.project_dir = pathlib.Path(os.getcwd())
 
-    def ask(self):
-        """Ask for user input."""
-        for name in type(self).METADATA:
-            self.metadata[name] = globals()[f"get_{name}"]()
-        self.project_details = ProjectDetails().ask()
-        supported_pythons = get_interpreters(ALL_PYTHONS)
-        if len(supported_pythons) == 0:
-            supported_pythons = ALL_PYTHONS
-        print(f"Supported pythons: {', '.join(supported_pythons)}")
-        self.supported_pythons = supported_pythons
-        self.initialize_with_git = click.prompt(
-            "Initialize with git init?", default="n", type=click.BOOL
+    def configure(self):
+        """Configure the project."""
+        self.config.read_config("pyproject")
+        if len(self.config) == 0:
+            return False
+        self.init_j2env()
+        return True
+
+    def init_j2env(self):
+        """Initialize Jinja2 environment."""
+        cls, config, j2env = type(self), self.config, {}
+        j2env[PACKAGE_NAME_KEY] = cls.PACKAGE_NAME
+        j2env[NAMESPACE_KEY] = (
+            cls.NAMESPACE if cls.NAMESPACE != REMOVE_ME else ""
         )
+        j2env[CLASSIFIERS_KEY] = config[CLASSIFIERS_KEY]
+        interpreters = config[INTERPRETERS_KEY]
+        j2env[LEAST_PYTHON3_KEY] = interpreters[0]
+        tox_envlist = ",".join([x.replace(".", "") for x in interpreters])
+        j2env[SUPPORTED_PYTHONS_KEY] = "{" f"{tox_envlist}" "}"
+        j2env[KEYWORDS_KEY] = config[KEYWORDS_KEY]
+        j2env[PLATFORMS_KEY] = config[PLATFORMS_KEY]
+        j2env[REQUIREMENTS_KEY] = config[REQUIREMENTS_KEY]
+        project_type = config[PROJECT_TYPE_KEY]
+        j2env[HAS_ENTRY_POINTS_KEY] = project_type > PACKAGE
+        if project_type == PACKAGE:
+            j2env[ENTRY_POINT_KIND_KEY] = ""
+        elif project_type == PLUGIN:
+            j2env[ENTRY_POINT_KIND_KEY] = config[PLUGIN_NAME_SPACE_KEY]
+        else:
+            j2env[ENTRY_POINT_KIND_KEY] = "console_scripts"
+        j2env[ENTRY_POINT_NAME_KEY] = config[ENTRY_POINT_NAME_KEY]
+        fqdn = j2env[ENTRY_POINT_SOURCE_KEY] = config[ENTRY_POINT_SOURCE_KEY]
+        j2env[ENTRY_POINT_SOURCE_DESCRIPTION_KEY] = config[
+            ENTRY_POINT_SOURCE_DESCRIPTION_KEY
+        ]
+        if project_type == CONSOLE_APP:
+            epfunc = config[ENTRY_POINT_FUNCTION_KEY]
+            j2env[ENTRY_POINT_FUNCTION_KEY] = epfunc
+            fqdn += f":{epfunc}"
+        j2env[ENTRY_POINT_FQDN_KEY] = fqdn
+        j2env[INITIALIZE_WITH_GIT_KEY] = config[INITIALIZE_WITH_GIT_KEY]
+        self.j2env = j2env
 
     def render_topdir_files(self):
         """Render files under top level directory."""
-        cls = type(self)
-        env = {
-            "least_python3": self.supported_pythons[0],
-            "has_entry_points": self.project_details.has_entry_points(),
-            "package_name": cls.PACKAGE_NAME,
-            "namespace": cls.NAMESPACE if cls.NAMESPACE != REMOVE_ME else "",
-        }
-        env.update(self.metadata)
-        if self.project_details.has_entry_points():
-            env.update(self.project_details.to_dict())
-        tox_supported_pythons = [
-            x.replace(".", "") for x in self.supported_pythons
-        ]
-        tox_supported_pythons = "{" f"{','.join(tox_supported_pythons)}" "}"
-        env.update({"supported_pythons": tox_supported_pythons})
-
-        result = render_prjfile(self.project_dir, "LICENSE")
-        result |= render_prjfile(self.project_dir, "MANIFEST.in")
-        result |= render_prjfile(self.project_dir, "pyproject.toml")
-        result |= render_prjfile(self.project_dir, "setup.cfg", env)
-        result |= render_prjfile(self.project_dir, "setup.py", chmod_x=True)
-        return result | render_prjfile(self.project_dir, "tox.ini", env)
+        env, project_dir = self.j2env, self.project_dir
+        render_prjfile(project_dir, "LICENSE")
+        render_prjfile(project_dir, "MANIFEST.in")
+        render_prjfile(project_dir, "pyproject.toml")
+        render_prjfile(project_dir, "setup.cfg", env)
+        render_prjfile(project_dir, "setup.py", chmod_x=True)
+        render_prjfile(project_dir, "tox.ini", env)
 
     def render_sources(self):
         """Render files under src directory."""
         cls = type(self)
+        env = self.j2env
         package_dir = self.project_dir / "src"
         if cls.NAMESPACE != REMOVE_ME:
             rmtree(package_dir / cls.PACKAGE_NAME)
@@ -317,51 +492,54 @@ class Project:
         else:
             rmtree(package_dir / REMOVE_ME)
         package_dir = package_dir / cls.PACKAGE_NAME
-        env = self.project_details.to_dict()
-        epsrc = f"{env['entry_point_source']}.py"
+        project_type = self.config[PROJECT_TYPE_KEY]
+        epsrc = f"{env[ENTRY_POINT_SOURCE_KEY]}.py"
 
-        result = render_prjfile(package_dir, "__init__.py")
-        if self.project_details.project_type == ProjectDetails.CONSOLE_APP:
-            result |= render_prjfile(package_dir, "__main__.py", env)
-            result |= render_prjfile(
-                package_dir, "main.py", env, newname=epsrc
-            )
-        elif self.project_details.project_type == ProjectDetails.PLUGIN:
-            result |= render_prjfile(
-                package_dir, "plugin.py", env, newname=epsrc
-            )
+        render_prjfile(package_dir, "__init__.py")
+        if project_type == CONSOLE_APP:
+            render_prjfile(package_dir, "__main__.py", env)
+            render_prjfile(package_dir, "main.py", env, newname=epsrc)
+        elif project_type == PLUGIN:
+            render_prjfile(package_dir, "plugin.py", env, newname=epsrc)
         for name in ("__main__", "main", "plugin"):
-            result |= remove_file(package_dir / f"{name}.py.j2")
-        return result | render_prjfile(package_dir, "version.py")
+            remove(package_dir / f"{name}.py.j2")
+        render_prjfile(package_dir, "version.py")
 
     def render_tests(self):
         """Render files under tests directory."""
         utests_dir = self.project_dir / "tests" / "unit"
-        env = self.project_details.to_dict()
-        epsrctest = f"test_{env['entry_point_source']}.py"
+        env = self.j2env
+        project_type = self.config[PROJECT_TYPE_KEY]
+        epsrctest = f"test_{env[ENTRY_POINT_SOURCE_KEY]}.py"
 
-        result = render_prjfile(utests_dir, "__init__.py")
-        if self.project_details.project_type == ProjectDetails.CONSOLE_APP:
-            result |= render_prjfile(
-                utests_dir, "test_main.py", env, newname=epsrctest
-            )
-        elif self.project_details.project_type == ProjectDetails.PLUGIN:
-            result |= render_prjfile(
+        render_prjfile(utests_dir, "__init__.py")
+        if project_type == CONSOLE_APP:
+            render_prjfile(utests_dir, "test_main.py", env, newname=epsrctest)
+        elif project_type == PLUGIN:
+            render_prjfile(
                 utests_dir, "test_plugin.py", env, newname=epsrctest
             )
         for name in ("main", "plugin"):
-            result |= remove_file(utests_dir / f"test_{name}.py.j2")
-        return result | render_prjfile(utests_dir, "test_version.py")
+            remove(utests_dir / f"test_{name}.py.j2")
+        render_prjfile(utests_dir, "test_version.py")
 
     def create(self):
         """Create a project."""
-        self.ask()
-        result = self.render_topdir_files()
-        result |= self.render_sources()
-        result |= self.render_tests()
-        if result != SUCCESS:
-            return result
-        return init_repo(self.project_dir, self.initialize_with_git)
+        try:
+            if not self.configure():
+                return FAILURE
+            self.render_topdir_files()
+            self.render_sources()
+            self.render_tests()
+            init_repo(self.project_dir, self.j2env[INITIALIZE_WITH_GIT_KEY])
+        except (
+            OSError,
+            jinja2.TemplateError,
+            subprocess.SubprocessError,
+        ) as exc:
+            print(str(exc))
+            return FAILURE
+        return SUCCESS
 
 
 if __name__ == "__main__":

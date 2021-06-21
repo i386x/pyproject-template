@@ -1,0 +1,68 @@
+---
+
+name: Test {{ cookiecutter.project_name }}
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-versions:
+{% raw -%}
+{% for item in interpreters %}
+          - {{ item }}
+{% endfor %}
+{%- endraw %}
+
+    steps:
+      - name: Checkout the project
+        uses: actions/checkout@v2
+
+      - name: Setup Python ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install tox
+
+      - name: Run tox
+        env:
+          GITHUB_TOKEN: ${% raw %}{% raw %}{{ secrets.GITHUB_TOKEN }}{% endraw %}{% endraw %}
+          COVERALLS_CMD: coveralls
+          COVERALLS_FLAG_NAME: ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+          COVERALLS_PARALLEL: true
+        run: |
+          tox -e py${COVERALLS_FLAG_NAME//.},linters
+
+  finish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Python {% raw %}{{ least_python3 }}{% endraw %}
+        uses: actions/setup-python@v2
+        with:
+          python-version: {% raw %}{{ least_python3 }}{% endraw %}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install coveralls
+
+      - name: Notify coveralls.io
+        env:
+          GITHUB_TOKEN: ${% raw %}{% raw %}{{ secrets.GITHUB_TOKEN }}{% endraw %}{% endraw %}
+        run: |
+          coveralls --finish

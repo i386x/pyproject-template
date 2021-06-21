@@ -443,7 +443,7 @@ class Project:
             cls.NAMESPACE if cls.NAMESPACE != REMOVE_ME else ""
         )
         j2env[CLASSIFIERS_KEY] = config[CLASSIFIERS_KEY]
-        interpreters = config[INTERPRETERS_KEY]
+        interpreters = j2env[INTERPRETERS_KEY] = config[INTERPRETERS_KEY]
         j2env[LEAST_PYTHON3_KEY] = interpreters[0]
         tox_envlist = ",".join([x.replace(".", "") for x in interpreters])
         j2env[SUPPORTED_PYTHONS_KEY] = "{" f"{tox_envlist}" "}"
@@ -480,6 +480,11 @@ class Project:
         render_prjfile(project_dir, "setup.cfg", env)
         render_prjfile(project_dir, "setup.py", chmod_x=True)
         render_prjfile(project_dir, "tox.ini", env)
+
+    def render_ghworkflows(self):
+        """Render files under .github/workflows directory."""
+        ghwf_dir = self.project_dir / ".github" / "workflows"
+        render_prjfile(ghwf_dir, "ci.yml", self.j2env)
 
     def render_sources(self):
         """Render files under src directory."""
@@ -529,6 +534,7 @@ class Project:
             if not self.configure():
                 return FAILURE
             self.render_topdir_files()
+            self.render_ghworkflows()
             self.render_sources()
             self.render_tests()
             init_repo(self.project_dir, self.j2env[INITIALIZE_WITH_GIT_KEY])

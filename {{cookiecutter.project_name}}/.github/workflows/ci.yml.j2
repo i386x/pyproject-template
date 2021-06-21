@@ -27,10 +27,10 @@ jobs:
       - name: Checkout the project
         uses: actions/checkout@v2
 
-      - name: Setup Python ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+      - name: Setup Python ${% raw %}{{ '{{ matrix.python-version }}' }}{% endraw %}
         uses: actions/setup-python@v2
         with:
-          python-version: ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+          python-version: ${% raw %}{{ '{{ matrix.python-version }}' }}{% endraw %}
 
       - name: Install dependencies
         run: |
@@ -39,9 +39,9 @@ jobs:
 
       - name: Run tox
         env:
-          GITHUB_TOKEN: ${% raw %}{% raw %}{{ secrets.GITHUB_TOKEN }}{% endraw %}{% endraw %}
+          GITHUB_TOKEN: ${% raw %}{{ '{{ secrets.GITHUB_TOKEN }}' }}{% endraw %}
           COVERALLS_CMD: coveralls
-          COVERALLS_FLAG_NAME: ${% raw %}{% raw %}{{ matrix.python-version }}{% endraw %}{% endraw %}
+          COVERALLS_FLAG_NAME: ${% raw %}{{ '{{ matrix.python-version }}' }}{% endraw %}
           COVERALLS_PARALLEL: true
         run: |
           tox -e py${COVERALLS_FLAG_NAME//.},linters
@@ -63,6 +63,6 @@ jobs:
 
       - name: Notify coveralls.io
         env:
-          GITHUB_TOKEN: ${% raw %}{% raw %}{{ secrets.GITHUB_TOKEN }}{% endraw %}{% endraw %}
+          GITHUB_TOKEN: ${% raw %}{{ '{{ secrets.GITHUB_TOKEN }}' }}{% endraw %}
         run: |
           coveralls --finish

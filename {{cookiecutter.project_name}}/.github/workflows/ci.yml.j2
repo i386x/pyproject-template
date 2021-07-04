@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-versions:
+        python-version:
 {% raw -%}
 {% for item in interpreters %}
           - {{ item }}
@@ -40,10 +40,13 @@ jobs:
       - name: Run tox
         env:
           GITHUB_TOKEN: ${% raw %}{{ '{{ secrets.GITHUB_TOKEN }}' }}{% endraw %}
-          COVERALLS_CMD: coveralls
+          COVERALLS_SERVICE_NAME: github
           COVERALLS_FLAG_NAME: ${% raw %}{{ '{{ matrix.python-version }}' }}{% endraw %}
           COVERALLS_PARALLEL: true
         run: |
+          PYVER=${COVERALLS_FLAG_NAME}
+          BASEDIR=.tox/py${PYVER//.}/lib/python${PYVER}/site-packages/
+          export COVERALLS_CMD="coveralls --basedir=${BASEDIR} --srcdir=src"
           tox -e py${COVERALLS_FLAG_NAME//.},linters
 
   finish:
@@ -64,5 +67,6 @@ jobs:
       - name: Notify coveralls.io
         env:
           GITHUB_TOKEN: ${% raw %}{{ '{{ secrets.GITHUB_TOKEN }}' }}{% endraw %}
+          COVERALLS_SERVICE_NAME: github
         run: |
           coveralls --finish

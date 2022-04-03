@@ -80,22 +80,24 @@ universal = True
 
 [check]
 metadata = True
-restructuredtext = True
+restructuredtext = False
 strict = True
 
 [sdist]
 formats = zip, gztar
 
 [flake8]
-filename = *.py,*.pyw
-select = E,F,W,C,G
-enable-extensions = G
+filename = *.py,*.pyi,*.pyw
+select = E,F,W,C,G,Y
+enable-extensions = G,Y
 max-line-length = 79
 max-doc-length = 79
 # Disable not PEP 8 compliant warnings:
 #   E203 whitespace before ':'
 #   W503 line break before binary operator
-extend-ignore = E203, W503
+# Disable warnings conflicting with black:
+#   E302 expect 2 blank lines
+extend-ignore = E203, E302, W503
 show-source = True
 statistics = True
 doctests = True

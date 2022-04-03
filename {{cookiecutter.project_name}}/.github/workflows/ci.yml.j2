@@ -19,7 +19,7 @@ jobs:
         python-version:
 {% raw -%}
 {% for item in interpreters %}
-          - {{ item }}
+          - '{{ item }}'
 {% endfor %}
 {%- endraw %}
 
@@ -47,17 +47,20 @@ jobs:
           PYVER=${COVERALLS_FLAG_NAME}
           BASEDIR=.tox/py${PYVER//.}/lib/python${PYVER}/site-packages/
           export COVERALLS_CMD="coveralls --basedir=${BASEDIR} --srcdir=src"
-          tox -e py${COVERALLS_FLAG_NAME//.},linters
+          tox -e py${PYVER//.}
+          if test 0${PYVER##*.} -ge 9; then
+            tox -e linters
+          fi
 
   finish:
     needs: test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Python {% raw %}{{ least_python3 }}{% endraw %}
+      - name: Setup Python 3.x
         uses: actions/setup-python@v2
         with:
-          python-version: {% raw %}{{ least_python3 }}{% endraw %}
+          python-version: '3.x'
 
       - name: Install dependencies
         run: |

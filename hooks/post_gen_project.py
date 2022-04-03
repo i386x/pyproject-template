@@ -62,7 +62,7 @@ PLUGIN = 1
 CONSOLE_APP = 2
 SUCCESS = 0
 FAILURE = 1
-PYVERS = ["3.6", "3.7", "3.8", "3.9"]
+PYVERS = ["3.7", "3.8", "3.9", "3.10"]
 PYVER_RE = r"^[3]\.[0-9]+$"
 GH_USER = "{{ cookiecutter.github_user }}"
 GH_EMAIL = "{{ cookiecutter.github_email|replace(' AT ', '@') }}"
@@ -485,6 +485,7 @@ class Project:
         """Render files under .github/workflows directory."""
         ghwf_dir = self.project_dir / ".github" / "workflows"
         render_prjfile(ghwf_dir, "ci.yml", self.j2env)
+        render_prjfile(ghwf_dir, "deploy.yml", self.j2env)
 
     def render_sources(self):
         """Render files under src directory."""
@@ -501,6 +502,7 @@ class Project:
         epsrc = f"{env[ENTRY_POINT_SOURCE_KEY]}.py"
 
         render_prjfile(package_dir, "__init__.py")
+        render_prjfile(package_dir, "__init__.pyi")
         if project_type == CONSOLE_APP:
             render_prjfile(package_dir, "__main__.py", env)
             render_prjfile(package_dir, "main.py", env, newname=epsrc)

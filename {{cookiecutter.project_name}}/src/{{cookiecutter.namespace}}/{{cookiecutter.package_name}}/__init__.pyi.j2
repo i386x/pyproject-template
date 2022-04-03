@@ -1,19 +1,8 @@
-#
-# File:    ./MANIFEST.in
+#                                                         -*- coding: utf-8 -*-
+# File:    ./src/{{ cookiecutter.namespace }}/{{ cookiecutter.package_name }}/__init__.pyi
 # Author:  {{ cookiecutter.team_name }} <{{ cookiecutter.team_email|replace('@', ' AT ') }}>
 # Date:    {% raw %}{{ stamp() }}{% endraw %}
 # Project: {{ cookiecutter.project_name }}: {{ cookiecutter.project_description }}
-# Brief:   What extra should or should not be packaged
 #
 # SPDX-License-Identifier: MIT
 #
-
-include LICENSE
-include *.md
-include pyproject.toml
-include tox.ini
-recursive-include src *.pyi
-recursive-include src py.typed
-graft tests
-
-global-exclude *.py[cod]

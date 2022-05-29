@@ -6,7 +6,7 @@
 #
 # SPDX-License-Identifier: MIT
 #
-"""Test {% raw %}{{ entry_point_source }}{% endraw %} module."""
+"""Test `{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}` module."""
 
 import importlib
 import unittest

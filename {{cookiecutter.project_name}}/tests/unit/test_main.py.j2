@@ -9,17 +9,20 @@
 """Test `{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}` module."""
 
 import importlib
-import unittest
-import unittest.mock
+
+from vutils.testing.mock import make_callable
+from vutils.testing.testcase import TestCase
 
 from {{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %} import main, start
 
 
-class MainTestCase(unittest.TestCase):
+class MainTestCase(TestCase):
     """Test case for entry points."""
 
+    __slots__ = ("__main_args", "__main_returns")
+
     def setUp(self):
-        """Set up the test case."""
+        """Set up the test."""
         self.__main_args = ["--foo", "--bar", "quux"]
         self.__main_returns = 42
 
@@ -36,16 +39,16 @@ class MainTestCase(unittest.TestCase):
 
     def test_start_function_import_case(self):
         """Test that start function do nothing during module import."""
-        exit_func = unittest.mock.Mock()
-        main_func = unittest.mock.Mock()
+        exit_func = make_callable()
+        main_func = make_callable()
         start("foo", exit_func, main_func, self.__main_args)
-        main_func.assert_not_called()
-        exit_func.assert_not_called()
+        self.assert_not_called(main_func)
+        self.assert_not_called(exit_func)
 
     def test_start_function_script_case(self):
         """Test that start function runs main during script invocation."""
-        exit_func = unittest.mock.Mock()
-        main_func = unittest.mock.Mock(return_value=self.__main_returns)
+        exit_func = make_callable()
+        main_func = make_callable(self.__main_returns)
         start("__main__", exit_func, main_func, self.__main_args)
-        main_func.assert_called_once_with(self.__main_args)
-        exit_func.assert_called_once_with(self.__main_returns)
+        self.assert_called_with(main_func, self.__main_args)
+        self.assert_called_with(exit_func, self.__main_returns)

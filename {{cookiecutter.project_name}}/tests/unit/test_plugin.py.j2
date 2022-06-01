@@ -9,11 +9,14 @@
 """Test `{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}` module."""
 
 import importlib
-import unittest
+
+from vutils.testing.testcase import TestCase
 
 
-class PluginTestCase(unittest.TestCase):
+class PluginTestCase(TestCase):
     """Test case for plugin entry points."""
+
+    __slots__ = ()
 
     def test_plugin_module(self):
         """

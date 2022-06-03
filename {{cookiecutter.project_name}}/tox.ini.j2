@@ -22,6 +22,7 @@ deps =
     safety
     pytest
     pytest-cov
+    pytest-order
     vutils-testing
     coveralls
 {% raw -%}
@@ -31,7 +32,7 @@ deps =
 {%- endraw %}
 commands =
     safety check --full-report
-    pytest --cov={{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} --cov-report=term-missing tests
+    pytest -v --cov={{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} --cov-report=term-missing tests
     {env:COVERALLS_CMD:coveralls --output={envname}-coverage.txt}
 
 [linters]

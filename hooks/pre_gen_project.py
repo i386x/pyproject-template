@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-#                                                         -*- coding: utf-8 -*-
+#
 # File:    ./hooks/pre_gen_project.py
 # Author:  Jiří Kučera <sanczes AT gmail.com>
 # Date:    2021-01-30 15:08:47 +0100

@@ -1,4 +1,4 @@
-#                                                         -*- coding: utf-8 -*-
+#
 # File:    ./hooks/utils/__init__.py
 # Author:  Jiří Kučera <sanczes AT gmail.com>
 # Date:    2021-01-31 23:34:42 +0100

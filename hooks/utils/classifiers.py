@@ -1,4 +1,4 @@
-#                                                         -*- coding: utf-8 -*-
+#
 # File:    ./hooks/utils/classifiers.py
 # Author:  Jiří Kučera <sanczes AT gmail.com>
 # Date:    2021-02-01 20:38:25 +0100

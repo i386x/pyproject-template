@@ -98,6 +98,12 @@ max-doc-length = 79
 # Disable warnings conflicting with black:
 #   E302 expect 2 blank lines
 extend-ignore = E203, E302, W503
+# Disable warnings conflicting with other linters:
+#   E704 multiple statements on one line (def)
+#        - disabled for `__init__.pyi` as `black` demands `def f() -> int: ...`
+#          style
+per-file-ignores =
+    __init__.pyi: E704
 show-source = True
 statistics = True
 doctests = True

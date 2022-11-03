@@ -104,7 +104,7 @@ deps =
 {% endfor %}
 {%- endraw %}
 commands =
-    pylint setup.py src/{{ (cookiecutter.namespace + '/') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }} tests/unit
+    pylint setup.py src tests/unit
 
 [testenv:flake8]
 envdir = {[linters]envdir}

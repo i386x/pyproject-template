@@ -86,6 +86,10 @@ strict = True
 [sdist]
 formats = zip, gztar
 
+[coverage:report]
+exclude_lines =
+    ^if TYPE_CHECKING:$
+
 [flake8]
 filename = *.py,*.pyi,*.pyw
 select = E,F,W,C,G,Y

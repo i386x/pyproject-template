@@ -6,7 +6,7 @@
 #
 # SPDX-License-Identifier: MIT
 #
-"""Enable invoking {{ cookiecutter.project_name }} by python -m {{ cookiecutter.namespace }}.{{ cookiecutter.package_name }}."""
+"""Enable invoking {{ cookiecutter.project_name }} by ``python -m {{ cookiecutter.namespace }}.{{ cookiecutter.package_name }}``."""
 
 from {{ cookiecutter.namespace }}.{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %} import start
 

@@ -6,7 +6,13 @@
 #
 # SPDX-License-Identifier: MIT
 #
-"""Test `{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}` module."""
+"""
+Test :mod:`{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}` module.
+
+.. |__main__| replace:: :mod:`{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__`
+.. |main| replace:: :func:`~{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}.main`
+.. |start| replace:: :func:`~{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.{% raw %}{{ entry_point_source }}{% endraw %}.start`
+"""
 
 import importlib
 
@@ -27,18 +33,18 @@ class MainTestCase(TestCase):
         self.__main_returns = 42
 
     def test_main_module(self):
-        """Test that __main__ can be imported."""
+        """Test that |__main__| can be imported."""
         module = importlib.import_module("{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
         self.assertIsNotNone(module)
         self.assertTrue(hasattr(module, "__name__"))
         self.assertEqual(module.__name__, "{{ (cookiecutter.namespace + '.') if cookiecutter.namespace != '.remove.me' else '' }}{{ cookiecutter.package_name }}.__main__")
 
     def test_main_function(self):
-        """Test that main returns zero."""
+        """Test that |main| returns zero."""
         self.assertEqual(main([]), 0)
 
     def test_start_function_import_case(self):
-        """Test that start function do nothing during module import."""
+        """Test that |start| function do nothing during module import."""
         exit_func = make_callable()
         main_func = make_callable()
         start("foo", exit_func, main_func, self.__main_args)
@@ -46,7 +52,7 @@ class MainTestCase(TestCase):
         self.assert_not_called(exit_func)
 
     def test_start_function_script_case(self):
-        """Test that start function runs main during script invocation."""
+        """Test that |start| function runs |main| during script invocation."""
         exit_func = make_callable()
         main_func = make_callable(self.__main_returns)
         start("__main__", exit_func, main_func, self.__main_args)

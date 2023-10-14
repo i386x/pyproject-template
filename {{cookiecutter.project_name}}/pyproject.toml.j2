@@ -29,5 +29,10 @@ min-public-methods = 0
 [tool.pylint.format]
 max-line-length = 79
 
+[tool.pylint."messages control"]
+enable = ["useless-suppression"]
+# `mypy` does the better job
+disable = ["no-member"]
+
 [tool.pylint.similarities]
 ignore-imports = true

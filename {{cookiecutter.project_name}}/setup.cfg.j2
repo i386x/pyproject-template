@@ -43,9 +43,6 @@ platforms =
 
 [options]
 zip_safe = False
-setup_requires =
-    setuptools >=40.9.0
-    docutils
 {% raw %}{{ '#' if requirements|length == 0 else '' }}{% endraw %}install_requires =
 {% raw -%}
 {% for item in requirements %}
@@ -60,9 +57,9 @@ package_dir =
 
 [options.extras_require]
 dev =
-    check-manifest
+    tox
 test =
-    coverage
+    tox
 {% raw -%}
 {% if has_entry_points %}
 
@@ -77,11 +74,6 @@ where = src
 
 [bdist_wheel]
 universal = True
-
-[check]
-metadata = True
-restructuredtext = False
-strict = True
 
 [sdist]
 formats = zip, gztar
@@ -103,11 +95,13 @@ max-doc-length = 79
 #   E302 expect 2 blank lines
 extend-ignore = E203, E302, W503
 # Disable warnings conflicting with other linters:
+#   E701 multiple statements on one line (colon)
+#        - disabled for `__init__.pyi` as `black` demands `class A: ...` style
 #   E704 multiple statements on one line (def)
 #        - disabled for `__init__.pyi` as `black` demands `def f() -> int: ...`
 #          style
 per-file-ignores =
-    __init__.pyi: E704
+    __init__.pyi: E701, E704
 show-source = True
 statistics = True
 doctests = True

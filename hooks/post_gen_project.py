@@ -478,7 +478,6 @@ class Project:
         render_prjfile(project_dir, "MANIFEST.in")
         render_prjfile(project_dir, "pyproject.toml")
         render_prjfile(project_dir, "setup.cfg", env)
-        render_prjfile(project_dir, "setup.py", chmod_x=True)
         render_prjfile(project_dir, "tox.ini", env)
 
     def render_ghworkflows(self):

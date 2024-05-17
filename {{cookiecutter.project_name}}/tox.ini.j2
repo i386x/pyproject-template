@@ -19,6 +19,7 @@ passenv = *
 description =
     {envname}: Run unit tests for {envname}
 deps =
+    idna >=3.7
     pip-audit
     pytest
     pytest-cov
@@ -58,6 +59,7 @@ setenv = {[linters]setenv}
 description =
     {envname}: Run general checks
 deps =
+    idna >=3.7
     pip-audit
     check-manifest
     twine

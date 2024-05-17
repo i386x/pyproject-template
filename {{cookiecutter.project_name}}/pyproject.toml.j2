@@ -23,6 +23,9 @@ use_parentheses = true
 ensure_newline_before_comments = true
 line_length = 79
 
+[tool.pylint.main]
+ignore-patterns = ["^\\.#", "^.*\\.pyi"]
+
 [tool.pylint.design]
 min-public-methods = 0
 

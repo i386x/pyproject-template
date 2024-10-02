@@ -48,7 +48,7 @@ jobs:
           BASEDIR=.tox/py${PYVER//.}/lib/python${PYVER}/site-packages/
           export COVERALLS_CMD="coveralls --basedir=${BASEDIR} --srcdir=src"
           tox -e py${PYVER//.}
-          if test 0${PYVER##*.} -ge 9; then
+          if test 0${PYVER##*.} -ge 10; then
             tox -e linters
           fi
 
